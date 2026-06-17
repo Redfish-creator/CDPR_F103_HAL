@@ -25,7 +25,10 @@
 #include "gpio.h"
 #include "motor.h"
 #include "vision.h"
-
+#include "motion.h"
+#include "kinematics.h"
+#include <stdio.h>
+#include "task.h"
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 
@@ -92,32 +95,14 @@ int main(void)
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
   MX_DMA_Init();
+	Task_Init();
   MX_I2C1_Init();
   MX_USART1_UART_Init();
   MX_USART2_UART_Init();
   MX_USART3_UART_Init();
   MX_TIM2_Init();
-	vision_init();
-	printf("vision init done\r\n");
-  /* USER CODE BEGIN 2 */
-vision_init();
-printf("vision init done\r\n");
-/* USER CODE END 2 */
-
-while (1)
-{
-  vision_task();                    /* 处理心跳回发 */
-
-  if (g_vision.laser_fresh) {
-      g_vision.laser_fresh = 0;
-      printf("LASER %.1f , %.1f\r\n", g_vision.laser_x, g_vision.laser_y);
-  }
-  if (g_vision.fire_fresh) {
-      g_vision.fire_fresh = 0;
-      printf("FIRE  %.1f , %.1f\r\n", g_vision.fire_x, g_vision.fire_y);
-  }
-  HAL_Delay(5);
-}
+motion_init();
+motion_enable_all(1);
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
@@ -125,8 +110,12 @@ while (1)
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
-  
+  while (1)
+  {
+      Task_Loop();
+  }
   /* USER CODE END 3 */
+ 
 }
 
 /**
@@ -169,7 +158,6 @@ void SystemClock_Config(void)
 }
 
 /* USER CODE BEGIN 4 */
-#include <stdio.h>
 int fputc(int ch, FILE *f)
 {
     HAL_UART_Transmit(&huart1, (uint8_t *)&ch, 1, 10);

@@ -555,6 +555,66 @@
               <FileType>5</FileType>
               <FilePath>..\Core\Inc\vision.h</FilePath>
             </File>
+            <File>
+              <FileName>kinematics.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\Core\Src\kinematics.c</FilePath>
+            </File>
+            <File>
+              <FileName>kinematics.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>..\Core\Inc\kinematics.h</FilePath>
+            </File>
+            <File>
+              <FileName>motion.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\Core\Src\motion.c</FilePath>
+            </File>
+            <File>
+              <FileName>motion.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>..\Core\Inc\motion.h</FilePath>
+            </File>
+            <File>
+              <FileName>task.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\Core\Src\task.c</FilePath>
+            </File>
+            <File>
+              <FileName>task.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>..\Core\Inc\task.h</FilePath>
+            </File>
+            <File>
+              <FileName>oled.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\Core\Src\oled.c</FilePath>
+            </File>
+            <File>
+              <FileName>oled.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>..\Core\Inc\oled.h</FilePath>
+            </File>
+            <File>
+              <FileName>route_menu_port.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\Core\Src\route_menu_port.c</FilePath>
+            </File>
+            <File>
+              <FileName>route_menu_port.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>..\Core\Inc\route_menu_port.h</FilePath>
+            </File>
+            <File>
+              <FileName>route_menu.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\Core\Src\route_menu.c</FilePath>
+            </File>
+            <File>
+              <FileName>route_menu.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>..\Core\Inc\route_menu.h</FilePath>
+            </File>
           </Files>
         </Group>
         <Group>

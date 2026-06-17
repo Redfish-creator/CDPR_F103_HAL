@@ -39,20 +39,17 @@ static void parse_packet(char *s)
     uint32_t now = HAL_GetTick();
     g_vision.last_rx_ms = now;
 
-    /* 取出 TAG (逗号前) */
     char *p = strchr(s, ',');
-    if (p) { *p = '\0'; p++; }             /* p 现在指向第一个参数 */
-    char *tag = s;
+    if (p) { *p = '\0'; p++; }
+    char *tag = s;    
 
-    /* 心跳: $HB,n# */
     if (strcmp(tag, "HB") == 0) {
         g_vision.hb_value   = p ? atoi(p) : 0;
         g_vision.hb_pending = 1;
         return;
     }
-    if (!p) return;                        /* 其余包都需要参数 */
+    if (!p) return;
 
-    /* 解析 x,y 两个浮点 */
     float x = (float)atof(p);
     char *q = strchr(p, ',');
     float y = q ? (float)atof(q + 1) : 0.0f;

@@ -30,5 +30,4 @@ cdpr_f103_hal\motor.o: ../Drivers/STM32F1xx_HAL_Driver/Inc/stm32f1xx_hal_pwr.h
 cdpr_f103_hal\motor.o: ../Drivers/STM32F1xx_HAL_Driver/Inc/stm32f1xx_hal_tim.h
 cdpr_f103_hal\motor.o: ../Drivers/STM32F1xx_HAL_Driver/Inc/stm32f1xx_hal_tim_ex.h
 cdpr_f103_hal\motor.o: ../Drivers/STM32F1xx_HAL_Driver/Inc/stm32f1xx_hal_uart.h
-cdpr_f103_hal\motor.o: D:\MDK2.0\ARM\ARMCC\Bin\..\include\stdio.h
 cdpr_f103_hal\motor.o: D:\MDK2.0\ARM\ARMCC\Bin\..\include\string.h

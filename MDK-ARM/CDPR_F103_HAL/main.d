@@ -35,5 +35,8 @@ cdpr_f103_hal\main.o: ../Core/Inc/tim.h
 cdpr_f103_hal\main.o: ../Core/Inc/usart.h
 cdpr_f103_hal\main.o: ../Core/Inc/gpio.h
 cdpr_f103_hal\main.o: ../Core/Inc/motor.h
-cdpr_f103_hal\main.o: D:\MDK2.0\ARM\ARMCC\Bin\..\include\stdio.h
 cdpr_f103_hal\main.o: ../Core/Inc/vision.h
+cdpr_f103_hal\main.o: ../Core/Inc/motion.h
+cdpr_f103_hal\main.o: ../Core/Inc/kinematics.h
+cdpr_f103_hal\main.o: D:\MDK2.0\ARM\ARMCC\Bin\..\include\stdio.h
+cdpr_f103_hal\main.o: ../Core/Inc/task.h
