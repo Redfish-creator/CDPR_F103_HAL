@@ -34,3 +34,5 @@ cdpr_f103_hal\motion.o: ../Drivers/STM32F1xx_HAL_Driver/Inc/stm32f1xx_hal_uart.h
 cdpr_f103_hal\motion.o: ../Core/Inc/kinematics.h
 cdpr_f103_hal\motion.o: D:\MDK2.0\ARM\ARMCC\Bin\..\include\math.h
 cdpr_f103_hal\motion.o: D:\MDK2.0\ARM\ARMCC\Bin\..\include\stdio.h
+cdpr_f103_hal\motion.o: ../Core/Inc/vision.h
+cdpr_f103_hal\motion.o: D:\MDK2.0\ARM\ARMCC\Bin\..\include\stdlib.h

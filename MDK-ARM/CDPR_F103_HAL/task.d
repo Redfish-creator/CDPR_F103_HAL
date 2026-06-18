@@ -37,3 +37,4 @@ cdpr_f103_hal\task.o: ../Core/Inc/oled.h
 cdpr_f103_hal\task.o: ../Core/Inc/i2c.h
 cdpr_f103_hal\task.o: ../Core/Inc/route_menu.h
 cdpr_f103_hal\task.o: D:\MDK2.0\ARM\ARMCC\Bin\..\include\stdio.h
+cdpr_f103_hal\task.o: ../Core/Inc/vision.h

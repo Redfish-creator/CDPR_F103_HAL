@@ -54,10 +54,9 @@ uint16_t       modbus_crc16(const uint8_t *data, uint16_t len);
 const char    *motor_result_str(mb_result_t r);
 
 mb_result_t motor_enable(uint8_t addr, uint8_t on, uint8_t sync);
-mb_result_t motor_move_trapezoid(uint8_t addr, uint8_t dir,
-                                 uint16_t acc_rpms, uint16_t dec_rpms,
-                                 uint16_t vmax_0p1rpm, uint32_t pos_0p1deg,
-                                 uint8_t mode, uint8_t sync);
+mb_result_t motor_move_pos(uint8_t addr, uint8_t dir,
+                           uint16_t vmax_0p1rpm, uint32_t pos_0p1deg,
+                           uint8_t mode, uint8_t sync);
 mb_result_t motor_sync_trigger(void);
 mb_result_t motor_stop(uint8_t addr, uint8_t sync);
 mb_result_t motor_zero_position(uint8_t addr);

@@ -29,6 +29,9 @@
 #include "kinematics.h"
 #include <stdio.h>
 #include "task.h"
+#include "route_menu.h"
+#include "route_menu_port.h"
+#include "oled.h"
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 
@@ -66,6 +69,49 @@ void SystemClock_Config(void);
 
 /* USER CODE END 0 */
 
+/* ===== 菜单验证(不接电机) =====
+ * 前提: main 里已 MX_GPIO_Init()(KEY_EXT1..4 + KEY0/PC5) + MX_I2C1_Init()(OLED)
+ * 验证: OLED 是否显示菜单; UP/DN/OK/BACK 能否选点/保存/回退;
+ *       选满 5 点后按 KEY0 是否把顺序原样输出(串口 + OLED)。 */
+void MenuTest_Run(void)
+{
+    uint8_t  key0_last = 0;
+    uint32_t t = HAL_GetTick();
+    char     line[22];
+
+    RouteMenu_Init();                              /* 内部 OLED_Init + 画菜单 */
+
+    for (;;) {
+        if (HAL_GetTick() - t >= 10) {             /* 10ms 扫一次菜单按键 */
+            t = HAL_GetTick();
+            RouteMenu_Task_10ms();
+        }
+
+        uint8_t k = (HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_5) == GPIO_PIN_RESET) ? 1 : 0;
+        if (RouteMenu_IsReady() && k && !key0_last) {   /* 选满 + 按 KEY0 */
+            RouteOrder_t r;
+            RouteMenu_GetOrder(&r);
+
+            printf("MENU ORDER:");
+            for (uint8_t i = 0; i < r.count; i++) printf(" P%d", r.order[i] + 1);
+            printf("   count=%d ready=%d\r\n", r.count, r.ready);
+
+            OLED_Clear();
+            OLED_ShowLine(0, "ORDER OK");
+            snprintf(line, sizeof(line), "%d %d %d %d %d",
+                     r.order[0]+1, r.order[1]+1, r.order[2]+1, r.order[3]+1, r.order[4]+1);
+            OLED_ShowLine(2, line);
+            OLED_ShowLine(4, "KEY0: AGAIN");
+            OLED_Refresh();
+
+            while (HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_5) == GPIO_PIN_RESET) HAL_Delay(10); /* 等松手 */
+            HAL_Delay(500);
+            RouteMenu_Reset();                     /* 重画菜单, 可再验证一次 */
+        }
+        key0_last = k;
+        HAL_Delay(1);
+    }
+}
 /**
   * @brief  The application entry point.
   * @retval int
@@ -93,26 +139,24 @@ int main(void)
   /* USER CODE END SysInit */
 
   /* Initialize all configured peripherals */
-  MX_GPIO_Init();
+MX_GPIO_Init();
   MX_DMA_Init();
-	Task_Init();
   MX_I2C1_Init();
   MX_USART1_UART_Init();
   MX_USART2_UART_Init();
   MX_USART3_UART_Init();
   MX_TIM2_Init();
-motion_init();
-motion_enable_all(1);
+  /* USER CODE BEGIN 2 */
+  vision_init();      /* 要用视觉才加; 需 USART2+DMA 已初始化 */
+  Task_Init();        /* 内部已含 motion_init + motion_enable_all + RouteMenu_Init */
+  /* USER CODE END 2 */
 
-  /* Infinite loop */
-  /* USER CODE BEGIN WHILE */
-  
-    /* USER CODE END WHILE */
-
-    /* USER CODE BEGIN 3 */
   while (1)
   {
-      Task_Loop();
+    /* USER CODE BEGIN 3 */
+    Task_Loop();
+    /* vision_task();   // 用视觉时放这里(回心跳) */
+    /* USER CODE END 3 */
   }
   /* USER CODE END 3 */
  

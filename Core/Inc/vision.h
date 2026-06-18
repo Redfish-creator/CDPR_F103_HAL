@@ -35,9 +35,9 @@ typedef struct {
     uint8_t  hb_pending;          /* 1=待回发, 回发后清0 */
     uint32_t last_rx_ms;          /* 任意一包数据的最后到达时刻 */
 } vision_data_t;
-
+uint8_t vision_read_filtered(float *x, float *y);
 extern vision_data_t g_vision;
-
+uint8_t fine_tune_to(float xt, float yt);
 /* 初始化: 启动 USART2 的 DMA+IDLE 接收。HAL 初始化完成后调用一次 */
 void vision_init(void);
 
@@ -46,5 +46,7 @@ void vision_task(void);
 
 /* 判断视觉链路是否在线 (timeout_ms 内有收到过任意数据) */
 uint8_t vision_is_online(uint32_t timeout_ms);
+
+uint8_t vision_read_filtered(float *x, float *y);
 
 #endif /* __VISION_H */

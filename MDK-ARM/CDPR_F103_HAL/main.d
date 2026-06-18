@@ -40,3 +40,6 @@ cdpr_f103_hal\main.o: ../Core/Inc/motion.h
 cdpr_f103_hal\main.o: ../Core/Inc/kinematics.h
 cdpr_f103_hal\main.o: D:\MDK2.0\ARM\ARMCC\Bin\..\include\stdio.h
 cdpr_f103_hal\main.o: ../Core/Inc/task.h
+cdpr_f103_hal\main.o: ../Core/Inc/route_menu.h
+cdpr_f103_hal\main.o: ../Core/Inc/route_menu_port.h
+cdpr_f103_hal\main.o: ../Core/Inc/oled.h

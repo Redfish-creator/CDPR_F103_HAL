@@ -5,6 +5,10 @@
 #include <string.h>
 #include <stdlib.h>
 
+#include <stdlib.h>   /* qsort */
+
+
+
 extern UART_HandleTypeDef huart2;          /* CubeMX 生成的 USART2 句柄 */
 
 /* ---- DMA 环形接收缓冲 (硬件自动写) ---- */
@@ -130,4 +134,21 @@ uint8_t vision_is_online(uint32_t timeout_ms)
 {
     if (g_vision.last_rx_ms == 0) return 0;          /* 从没收到过 */
     return (HAL_GetTick() - g_vision.last_rx_ms) <= timeout_ms;
+}
+
+#define VIS_N        9
+#define VIS_WAIT_MS  300
+static int cmp_f(const void *a, const void *b){ float d=*(const float*)a-*(const float*)b; return (d>0)-(d<0); }
+uint8_t vision_read_filtered(float *x, float *y)
+{
+    float bx[VIS_N], by[VIS_N]; uint8_t n = 0;
+    uint32_t t0 = HAL_GetTick();
+    while (n < VIS_N && (HAL_GetTick() - t0) < VIS_WAIT_MS) {
+        if (g_vision.laser_fresh) { g_vision.laser_fresh = 0; bx[n]=g_vision.laser_x; by[n]=g_vision.laser_y; n++; }
+    }
+    if (n < (VIS_N/2 + 1)) return 0;
+    qsort(bx, n, sizeof(float), cmp_f);
+    qsort(by, n, sizeof(float), cmp_f);
+    *x = bx[n/2]; *y = by[n/2];
+    return 1;
 }

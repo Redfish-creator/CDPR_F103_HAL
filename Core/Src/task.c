@@ -22,6 +22,8 @@
 #include "route_menu.h"
 #include "main.h"          /* HAL + GPIO 宏 */
 #include <stdio.h>
+#include "vision.h" 
+
 
 /* ============================================================
  *  >>> 必改 <<<  5 个橙色圆的实测坐标 (单位 cm, 原点=板子中心)
@@ -32,6 +34,11 @@
 static const float PT_X[ROUTE_POINT_NUM] = { -15.0f, +15.0f, +15.0f, -15.0f,  0.0f };
 static const float PT_Y[ROUTE_POINT_NUM] = { +15.0f, +15.0f, -15.0f, -15.0f,  0.0f };
 /* ============================================================ */
+
+#define HOME_OK_CM          2.0f
+#define HOME_STEP_MAX_CM    5.0f
+#define HOME_MAX_ITER       10
+#define HOME_VISION_AGE_MS  500
 
 typedef enum { TS_MENU = 0, TS_DONE } TaskState_t;
 
@@ -91,7 +98,10 @@ static void Task_ShowPos(const char *tag, uint8_t step, uint8_t total)
 static void Task_RunPatrol(const RouteOrder_t *r)
 {
     OLED_Clear(); OLED_ShowLine(0, "HOMING..."); OLED_Refresh();
-    motion_set_home();                   /* 在中心清零编码器 + 复位模型 */
+    if (motion_set_home() != MB_OK) {
+        OLED_Clear(); OLED_ShowLine(0, "HOME ZERO FAIL"); OLED_Refresh();
+        return;
+    }
     HAL_Delay(300);
 
     for (uint8_t i = 0; i < r->count; i++) {
@@ -165,4 +175,10 @@ void Task_Loop(void)
         s_state = TS_MENU;
         break;
     }
+}
+
+static uint8_t Task_GetVisionLaser(float *x, float *y)
+{
+    if (!vision_is_online(HOME_VISION_AGE_MS)) return 0;   /* 彻底掉线 */
+    return vision_read_filtered(x, y);                     /* 多帧中值 */
 }
