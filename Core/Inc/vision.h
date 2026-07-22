@@ -27,17 +27,29 @@ typedef struct {
 
     float   circle_x, circle_y;   /* 当前匹配圆坐标 cm */
     uint8_t circle_fresh;
+    uint32_t circle_ms;
 
     float   tilt_x,   tilt_y;     /* 姿态 */
     uint8_t tilt_fresh;
+    uint32_t tilt_ms;
 
     int      hb_value;            /* 收到的心跳编号 */
     uint8_t  hb_pending;          /* 1=待回发, 回发后清0 */
     uint32_t last_rx_ms;          /* 任意一包数据的最后到达时刻 */
+
+    uint32_t rx_byte_count;       /* USART2 已处理字节数, 用于判断物理链路是否有数据 */
+    uint32_t frame_count;         /* 完整 $...# 帧数量 */
+    uint32_t bad_frame_count;     /* 超长/缺字段等异常帧 */
+    uint32_t unknown_count;       /* 未识别 TAG 数量 */
+    uint32_t laser_count;
+    uint32_t fire_count;
+    uint32_t circle_count;
+    uint32_t tilt_count;
+    uint32_t hb_count;
 } vision_data_t;
-uint8_t vision_read_filtered(float *x, float *y);
+
 extern vision_data_t g_vision;
-uint8_t fine_tune_to(float xt, float yt);
+
 /* 初始化: 启动 USART2 的 DMA+IDLE 接收。HAL 初始化完成后调用一次 */
 void vision_init(void);
 

@@ -23,17 +23,12 @@
 #include "tim.h"
 #include "usart.h"
 #include "gpio.h"
-#include "motor.h"
-#include "vision.h"
-#include "motion.h"
-#include "kinematics.h"
-#include <stdio.h>
-#include "task.h"
-#include "route_menu.h"
-#include "route_menu_port.h"
-#include "oled.h"
+
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
+#include "task.h"
+#include "vision.h"
+#include <stdio.h>
 
 /* USER CODE END Includes */
 
@@ -44,6 +39,9 @@
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
+#ifndef APP_VISION_DEBUG_TEST
+#define APP_VISION_DEBUG_TEST 1   /* 1=只测试视觉串口; 0=恢复正式比赛流程 */
+#endif
 
 /* USER CODE END PD */
 
@@ -66,52 +64,112 @@ void SystemClock_Config(void);
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
+#if APP_VISION_DEBUG_TEST
+static void VisionDebug_PrintFixed10(float v)
+{
+    int32_t scaled = (v >= 0.0f) ? (int32_t)(v * 10.0f + 0.5f)
+                                 : (int32_t)(v * 10.0f - 0.5f);
+    if (scaled < 0) {
+        printf("-");
+        scaled = -scaled;
+    }
+    printf("%ld.%ld", (long)(scaled / 10), (long)(scaled % 10));
+}
+
+static void VisionDebug_PrintCoord(const char *tag, uint32_t count,
+                                   float x, float y, uint32_t age_ms)
+{
+    printf("[%s] cnt=%lu x=", tag, (unsigned long)count);
+    VisionDebug_PrintFixed10(x);
+    printf(" y=");
+    VisionDebug_PrintFixed10(y);
+    printf(" age=%lums\r\n", (unsigned long)age_ms);
+}
+
+static void VisionDebug_Banner(void)
+{
+    printf("\r\n=== VISION DEBUG MODE ===\r\n");
+    printf("PC debug: USART1 PA9/PA10, 115200 8N1\r\n");
+    printf("MaixCAM : USART2 PA2(TX)->CAM_RX, PA3(RX)<-CAM_TX, 115200 8N1\r\n");
+    printf("Expect  : $HB,n# $LASER,x,y# $FIRE,x,y# $CIRCLE,x,y# $TILT,x,y#\r\n");
+    printf("Notice  : motor/task/menu are disabled in this firmware\r\n\r\n");
+}
+
+static void VisionDebug_Task(void)
+{
+    static uint32_t last_stat_ms = 0;
+    static uint32_t last_laser_count = 0;
+    static uint32_t last_fire_count = 0;
+    static uint32_t last_circle_count = 0;
+    static uint32_t last_tilt_count = 0;
+    static uint32_t last_hb_count = 0;
+
+    uint32_t now = HAL_GetTick();
+
+    if (g_vision.hb_count != last_hb_count) {
+        last_hb_count = g_vision.hb_count;
+        printf("[HB] cnt=%lu value=%d age=%lums, echoed to USART2\r\n",
+               (unsigned long)g_vision.hb_count,
+               g_vision.hb_value,
+               (unsigned long)(now - g_vision.last_rx_ms));
+    }
+
+    if (g_vision.laser_count != last_laser_count) {
+        last_laser_count = g_vision.laser_count;
+        g_vision.laser_fresh = 0;
+        VisionDebug_PrintCoord("LASER", g_vision.laser_count,
+                               g_vision.laser_x, g_vision.laser_y,
+                               now - g_vision.laser_ms);
+    }
+
+    if (g_vision.fire_count != last_fire_count) {
+        last_fire_count = g_vision.fire_count;
+        g_vision.fire_fresh = 0;
+        VisionDebug_PrintCoord("FIRE", g_vision.fire_count,
+                               g_vision.fire_x, g_vision.fire_y,
+                               now - g_vision.fire_ms);
+    }
+
+    if (g_vision.circle_count != last_circle_count) {
+        last_circle_count = g_vision.circle_count;
+        g_vision.circle_fresh = 0;
+        VisionDebug_PrintCoord("CIRCLE", g_vision.circle_count,
+                               g_vision.circle_x, g_vision.circle_y,
+                               now - g_vision.circle_ms);
+    }
+
+    if (g_vision.tilt_count != last_tilt_count) {
+        last_tilt_count = g_vision.tilt_count;
+        g_vision.tilt_fresh = 0;
+        VisionDebug_PrintCoord("TILT", g_vision.tilt_count,
+                               g_vision.tilt_x, g_vision.tilt_y,
+                               now - g_vision.tilt_ms);
+    }
+
+    if ((now - last_stat_ms) >= 1000U) {
+        last_stat_ms = now;
+        printf("[STAT] online=%u ", (unsigned int)vision_is_online(1000U));
+        if (g_vision.last_rx_ms == 0U) {
+            printf("age=never ");
+        } else {
+            printf("age=%lums ", (unsigned long)(now - g_vision.last_rx_ms));
+        }
+        printf("rx=%lu frame=%lu bad=%lu unknown=%lu hb=%lu laser=%lu fire=%lu circle=%lu tilt=%lu\r\n",
+               (unsigned long)g_vision.rx_byte_count,
+               (unsigned long)g_vision.frame_count,
+               (unsigned long)g_vision.bad_frame_count,
+               (unsigned long)g_vision.unknown_count,
+               (unsigned long)g_vision.hb_count,
+               (unsigned long)g_vision.laser_count,
+               (unsigned long)g_vision.fire_count,
+               (unsigned long)g_vision.circle_count,
+               (unsigned long)g_vision.tilt_count);
+    }
+}
+#endif
 
 /* USER CODE END 0 */
 
-/* ===== 菜单验证(不接电机) =====
- * 前提: main 里已 MX_GPIO_Init()(KEY_EXT1..4 + KEY0/PC5) + MX_I2C1_Init()(OLED)
- * 验证: OLED 是否显示菜单; UP/DN/OK/BACK 能否选点/保存/回退;
- *       选满 5 点后按 KEY0 是否把顺序原样输出(串口 + OLED)。 */
-void MenuTest_Run(void)
-{
-    uint8_t  key0_last = 0;
-    uint32_t t = HAL_GetTick();
-    char     line[22];
-
-    RouteMenu_Init();                              /* 内部 OLED_Init + 画菜单 */
-
-    for (;;) {
-        if (HAL_GetTick() - t >= 10) {             /* 10ms 扫一次菜单按键 */
-            t = HAL_GetTick();
-            RouteMenu_Task_10ms();
-        }
-
-        uint8_t k = (HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_5) == GPIO_PIN_RESET) ? 1 : 0;
-        if (RouteMenu_IsReady() && k && !key0_last) {   /* 选满 + 按 KEY0 */
-            RouteOrder_t r;
-            RouteMenu_GetOrder(&r);
-
-            printf("MENU ORDER:");
-            for (uint8_t i = 0; i < r.count; i++) printf(" P%d", r.order[i] + 1);
-            printf("   count=%d ready=%d\r\n", r.count, r.ready);
-
-            OLED_Clear();
-            OLED_ShowLine(0, "ORDER OK");
-            snprintf(line, sizeof(line), "%d %d %d %d %d",
-                     r.order[0]+1, r.order[1]+1, r.order[2]+1, r.order[3]+1, r.order[4]+1);
-            OLED_ShowLine(2, line);
-            OLED_ShowLine(4, "KEY0: AGAIN");
-            OLED_Refresh();
-
-            while (HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_5) == GPIO_PIN_RESET) HAL_Delay(10); /* 等松手 */
-            HAL_Delay(500);
-            RouteMenu_Reset();                     /* 重画菜单, 可再验证一次 */
-        }
-        key0_last = k;
-        HAL_Delay(1);
-    }
-}
 /**
   * @brief  The application entry point.
   * @retval int
@@ -139,7 +197,7 @@ int main(void)
   /* USER CODE END SysInit */
 
   /* Initialize all configured peripherals */
-MX_GPIO_Init();
+  MX_GPIO_Init();
   MX_DMA_Init();
   MX_I2C1_Init();
   MX_USART1_UART_Init();
@@ -148,18 +206,30 @@ MX_GPIO_Init();
   MX_TIM2_Init();
   /* USER CODE BEGIN 2 */
   vision_init();      /* 要用视觉才加; 需 USART2+DMA 已初始化 */
-  Task_Init();        /* 内部已含 motion_init + motion_enable_all + RouteMenu_Init */
+#if APP_VISION_DEBUG_TEST
+  VisionDebug_Banner();
+#else
+  Task_Init();        /* 先显示 HOME; 视觉回中心成功后再进入菜单 */
+#endif
   /* USER CODE END 2 */
 
+  /* Infinite loop */
+  /* USER CODE BEGIN WHILE */
   while (1)
   {
+    /* USER CODE END WHILE */
+
     /* USER CODE BEGIN 3 */
+#if APP_VISION_DEBUG_TEST
+    vision_task();      /* 收到 $HB,n# 时原样回发给 MaixCAM */
+    VisionDebug_Task();
+    HAL_Delay(5);
+#else
     Task_Loop();
-    /* vision_task();   // 用视觉时放这里(回心跳) */
-    /* USER CODE END 3 */
+    vision_task();      /* 视觉心跳回发($HB), 现在用视觉, 必须开 */
+#endif
   }
   /* USER CODE END 3 */
- 
 }
 
 /**

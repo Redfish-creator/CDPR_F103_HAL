@@ -3,11 +3,7 @@
  * ============================================================ */
 #include "vision.h"
 #include <string.h>
-#include <stdlib.h>
-
 #include <stdlib.h>   /* qsort */
-
-
 
 extern UART_HandleTypeDef huart2;          /* CubeMX 生成的 USART2 句柄 */
 
@@ -42,6 +38,7 @@ static void parse_packet(char *s)
 {
     uint32_t now = HAL_GetTick();
     g_vision.last_rx_ms = now;
+    g_vision.frame_count++;
 
     char *p = strchr(s, ',');
     if (p) { *p = '\0'; p++; }
@@ -50,32 +47,48 @@ static void parse_packet(char *s)
     if (strcmp(tag, "HB") == 0) {
         g_vision.hb_value   = p ? atoi(p) : 0;
         g_vision.hb_pending = 1;
+        g_vision.hb_count++;
         return;
     }
-    if (!p) return;
+    if (!p) {
+        g_vision.bad_frame_count++;
+        return;
+    }
 
     float x = (float)atof(p);
     char *q = strchr(p, ',');
-    float y = q ? (float)atof(q + 1) : 0.0f;
+    if (!q) {
+        g_vision.bad_frame_count++;
+        return;
+    }
+    float y = (float)atof(q + 1);
 
     if (strcmp(tag, "LASER") == 0) {
         g_vision.laser_x = x; g_vision.laser_y = y;
         g_vision.laser_fresh = 1; g_vision.laser_ms = now;
+        g_vision.laser_count++;
     } else if (strcmp(tag, "FIRE") == 0) {
         g_vision.fire_x = x; g_vision.fire_y = y;
         g_vision.fire_fresh = 1; g_vision.fire_ms = now;
+        g_vision.fire_count++;
     } else if (strcmp(tag, "CIRCLE") == 0) {
         g_vision.circle_x = x; g_vision.circle_y = y;
-        g_vision.circle_fresh = 1;
+        g_vision.circle_fresh = 1; g_vision.circle_ms = now;
+        g_vision.circle_count++;
     } else if (strcmp(tag, "TILT") == 0) {
         g_vision.tilt_x = x; g_vision.tilt_y = y;
-        g_vision.tilt_fresh = 1;
+        g_vision.tilt_fresh = 1; g_vision.tilt_ms = now;
+        g_vision.tilt_count++;
+    } else {
+        g_vision.unknown_count++;
     }
 }
 
 /* ---------- 逐字节拼包 ---------- */
 static void feed_char(uint8_t c)
 {
+    g_vision.rx_byte_count++;
+
     if (c == '$') { in_frame = 1; line_len = 0; return; }
     if (!in_frame) return;
     if (c == '#') {
@@ -88,6 +101,7 @@ static void feed_char(uint8_t c)
     if (line_len < LINE_MAX - 1) {
         line[line_len++] = (char)c;
     } else {                               /* 超长 -> 丢弃本包 */
+        g_vision.bad_frame_count++;
         in_frame = 0; line_len = 0;
     }
 }
@@ -99,6 +113,14 @@ void HAL_UARTEx_RxEventCallback(UART_HandleTypeDef *huart, uint16_t Size)
     if (huart->Instance != USART2) return;
 
     /* 从上次处理位置 rx2_rd 一直处理到 Size, 环形 */
+    if (Size >= RX2_SIZE) {
+        while (rx2_rd < RX2_SIZE) {
+            feed_char(rx2_dma[rx2_rd++]);
+        }
+        rx2_rd = 0;
+        return;
+    }
+
     while (rx2_rd != Size) {
         feed_char(rx2_dma[rx2_rd]);
         rx2_rd++;
@@ -136,8 +158,11 @@ uint8_t vision_is_online(uint32_t timeout_ms)
     return (HAL_GetTick() - g_vision.last_rx_ms) <= timeout_ms;
 }
 
-#define VIS_N        9
-#define VIS_WAIT_MS  300
+/* MaixCAM LASER 发包仅 ~10Hz (其 config.py serial_tx_interval_ms=100)。
+ * 取 5 帧中值: 10Hz 凑 5 帧约 500ms, 窗口给到 900ms 容忍丢帧/降速;
+ * 最少需要 VIS_N/2+1 = 3 帧才有效。原来 9 帧/300ms 在 10Hz 下永远凑不齐。 */
+#define VIS_N        5
+#define VIS_WAIT_MS  900
 static int cmp_f(const void *a, const void *b){ float d=*(const float*)a-*(const float*)b; return (d>0)-(d<0); }
 uint8_t vision_read_filtered(float *x, float *y)
 {

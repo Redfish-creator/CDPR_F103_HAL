@@ -7,10 +7,19 @@
 #include <math.h>
 #include <stdio.h>
 #include "vision.h"
-#include <stdlib.h>     /* qsort */
 static float cur_x = 0.0f, cur_y = 0.0f;
 static float cur_L[4];
 static float home_L[4];      /* 中心(home)处绳长, 编码器在此清零 */
+
+static void motion_delay_service(uint32_t delay_ms)
+{
+    uint32_t start = HAL_GetTick();
+
+    while ((HAL_GetTick() - start) < delay_ms) {
+        vision_task();
+        HAL_Delay(5);
+    }
+}
 
 void motion_init(void)
 {
@@ -91,8 +100,9 @@ mb_result_t motion_move_to(float x, float y)
     /* 3) 估时等待 (运动期间不读总线) */
     uint32_t mag_max = (uint32_t)(dmax * KIN_COUNTS_PER_CM + 0.5f);
     uint32_t move_ms = (uint32_t)(((float)mag_max / (MOTION_BASE_VMAX * 6.0f)) * 1000.0f) + 1500;
-    if (move_ms < 800) move_ms = 800; if (move_ms > 12000) move_ms = 12000;
-    HAL_Delay(move_ms);
+    if (move_ms < 800) move_ms = 800;
+    if (move_ms > 12000) move_ms = 12000;
+    motion_delay_service(move_ms);
 
     /* 4) 停稳后回读校验; 任一读失败或超差 -> 不更新模型 */
     int32_t max_abs_err = 0; uint8_t read_ok = 1;
@@ -123,19 +133,13 @@ mb_result_t motion_move_to(float x, float y)
 #define FT_GAIN       0.7f      /* 欠松弛, 防过冲 */
 #define FT_SETTLE_MS  300
 
-#define HOME_MAX_ITER   8
-#define HOME_TOL_CM     1.0f      /* 进这个圈就算到中心 */
-#define HOME_STEP_CM    5.0f      /* 每步朝中心最多走 5cm(防止远处一把猛冲) */
-
-
-
 /* 目标(xt,yt) 已被 A 粗定位到附近; 返回 1=收敛到阈值内 */
 uint8_t fine_tune_to(float xt, float yt)
 {
     if (!vision_is_online(500)) return 0;             /* 视觉掉线 -> 放弃精修, 用 A 的结果(降级) */
 
     for (int k = 0; k < FT_MAX_STEPS; k++) {
-        HAL_Delay(FT_SETTLE_MS);                      /* 停稳 */
+        motion_delay_service(FT_SETTLE_MS);           /* 停稳 */
         float xm, ym;
         if (!vision_read_filtered(&xm, &ym)) return 0;
         float ex = xt - xm, ey = yt - ym;
@@ -202,7 +206,14 @@ mb_result_t motion_move_between_nohome(float x_now, float y_now,
     if (move_ms < 500) move_ms = 500;
     if (move_ms > 5000) move_ms = 5000;
 
-    HAL_Delay(move_ms);
+    motion_delay_service(move_ms);
+
+    cur_x = x_next;
+    cur_y = y_next;
+    for (int i = 0; i < 4; i++) {
+        cur_L[i] = L1[i];
+    }
+
     return MB_OK;
 }
 
