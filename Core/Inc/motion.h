@@ -26,4 +26,20 @@ uint8_t fine_tune_to(float xt, float yt);
 
 
 mb_result_t motion_move_between_nohome(float x_now, float y_now, float x_next, float y_next);
+mb_result_t motion_move_between_nohome_relaxed(float x_now, float y_now,
+                                               float x_next, float y_next,
+                                               float takeup_gain,
+                                               float payout_gain);
+mb_result_t motion_move_between_nohome_relaxed_quick(float x_now, float y_now,
+                                                     float x_next, float y_next,
+                                                     float takeup_gain,
+                                                     float payout_gain);
+mb_result_t motion_jog_step_start(float x_now, float y_now,
+                                  float x_next, float y_next,
+                                  float takeup_gain,
+                                  float payout_gain,
+                                  uint32_t *move_ms);
+mb_result_t motion_jog_velocity_at(float x_now, float y_now,
+                                   float vx_cm_s, float vy_cm_s);
+mb_result_t motion_jog_stop(void);
 #endif /* __MOTION_H */

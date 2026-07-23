@@ -9,7 +9,7 @@
 extern UART_HandleTypeDef huart3;          /* CubeMX 生成的 USART3 句柄 */
 
 #define MB_TX_TIMEOUT   50                 /* 发送超时 ms */
-#define MB_RX_TIMEOUT   80                 /* 等应答超时 ms */
+#define MB_RX_TIMEOUT   120                /* 等应答超时 ms */
 #define MB_BUF_SIZE     64
 
 /* ---------- Modbus CRC16 (低字节在前) ---------- */
@@ -36,6 +36,17 @@ const char *motor_result_str(mb_result_t r)
         case MB_ERR_REJECT:  return "REJECTED";
         default:             return "?";
     }
+}
+
+/* 实测卷线方向:
+ *   M1/M3: CCW=收线, CW=放线
+ *   M2/M4: CW =收线, CCW=放线 */
+uint8_t motor_cable_direction(uint8_t addr, uint8_t cable_action)
+{
+    uint8_t takeup_dir = ((addr == 2U) || (addr == 4U)) ? MB_DIR_CW : MB_DIR_CCW;
+
+    if (cable_action == MOTOR_CABLE_TAKEUP) return takeup_dir;
+    return (takeup_dir == MB_DIR_CW) ? MB_DIR_CCW : MB_DIR_CW;
 }
 
 /* ---------- 一次完整事务: 发请求 + 收应答并校验 ----------
@@ -113,7 +124,7 @@ mb_result_t motor_move_pos(uint8_t addr, uint8_t dir,
     f[n++] = 0x00; f[n++] = 0xF0;            /* 寄存器 0x00F0 */
     f[n++] = 0x00; f[n++] = 0x05;            /* 5 个寄存器 */
     f[n++] = 0x0A;                           /* 10 字节 */
-    f[n++] = 0x00; f[n++] = dir;             /* reg1: 方向 00=CW(收线) 01=CCW */
+    f[n++] = 0x00; f[n++] = dir;             /* reg1: 00=CW, 01=CCW; 收放线映射见 motor_cable_direction */
     f[n++] = (uint8_t)(vmax_0p1rpm >> 8);    /* reg2: 速度 0.1RPM, 大端 */
     f[n++] = (uint8_t)(vmax_0p1rpm & 0xFF);
     f[n++] = (uint8_t)(pos_low  >> 8);       /* reg3: 位置低字(0.1°) */
@@ -126,6 +137,33 @@ mb_result_t motor_move_pos(uint8_t addr, uint8_t dir,
     uint8_t rsp[8];
     return mb_transaction(f, n, rsp, 8);
 }
+
+/* 0x00F6 speed mode. The driver is configured for 0.1RPM speed input,
+ * matching the unit used by motor_move_pos(). */
+mb_result_t motor_run_speed(uint8_t addr, uint8_t dir,
+                            uint16_t speed_0p1rpm,
+                            uint8_t acc, uint8_t sync)
+{
+    uint8_t f[16];
+    uint8_t n = 0;
+
+    f[n++] = addr;
+    f[n++] = MB_FUNC_WRITEN;
+    f[n++] = (uint8_t)(REG_SPEED_MODE >> 8);
+    f[n++] = (uint8_t)(REG_SPEED_MODE & 0xFF);
+    f[n++] = 0x00; f[n++] = 0x03;
+    f[n++] = 0x06;
+    f[n++] = dir;
+    f[n++] = (uint8_t)(speed_0p1rpm >> 8);
+    f[n++] = (uint8_t)(speed_0p1rpm & 0xFF);
+    f[n++] = acc;
+    f[n++] = sync;
+    f[n++] = 0x00;
+
+    uint8_t rsp[8];
+    return mb_transaction(f, n, rsp, 8);
+}
+
 /* 广播多机同步触发: 地址0, 06 00FF 6600 (电机不应答, 只发不收) */
 mb_result_t motor_sync_trigger(void)
 {

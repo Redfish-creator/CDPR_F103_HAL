@@ -28,8 +28,9 @@
 /* USER CODE BEGIN Includes */
 #include "task.h"
 #include "vision.h"
+#include "motor_test.h"
+#include <math.h>
 #include <stdio.h>
-
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -40,7 +41,16 @@
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
 #ifndef APP_VISION_DEBUG_TEST
-#define APP_VISION_DEBUG_TEST 1   /* 1=只测试视觉串口; 0=恢复正式比赛流程 */
+#define APP_VISION_DEBUG_TEST 0   /* 1=只测试视觉串口; 调完视觉后改回0恢复任务流程 */
+#endif
+#ifndef APP_MOTOR_DEBUG_TEST
+#define APP_MOTOR_DEBUG_TEST 0    /* 1=串口命令触发的低速电机测试 */
+#endif
+#ifndef APP_VISION_DEBUG_AUTO_TOTAL
+#define APP_VISION_DEBUG_AUTO_TOTAL 0 /* 1=调试时自动请求 total; 默认用KEY0手动切换, 避免误锚定 */
+#endif
+#if APP_VISION_DEBUG_TEST && APP_MOTOR_DEBUG_TEST
+#error "Select only one debug test mode"
 #endif
 
 /* USER CODE END PD */
@@ -86,12 +96,106 @@ static void VisionDebug_PrintCoord(const char *tag, uint32_t count,
     printf(" age=%lums\r\n", (unsigned long)age_ms);
 }
 
+static uint32_t VisionDebug_Age(uint32_t now, uint32_t event_ms)
+{
+    return (event_ms <= now) ? (now - event_ms) : 0U;
+}
+
+static uint32_t VisionDebug_TimeDiff(uint32_t a, uint32_t b)
+{
+    return (a >= b) ? (a - b) : (b - a);
+}
+
+static const char *VisionDebug_ErrorName(vision_parse_error_t reason)
+{
+    switch (reason) {
+    case VISION_PARSE_ERROR_EMPTY:          return "empty frame";
+    case VISION_PARSE_ERROR_NO_START:       return "'#' without '$'";
+    case VISION_PARSE_ERROR_RESTARTED:      return "new '$' before '#'";
+    case VISION_PARSE_ERROR_TOO_LONG:       return "frame too long";
+    case VISION_PARSE_ERROR_MISSING_FIELD:  return "missing field";
+    case VISION_PARSE_ERROR_INVALID_NUMBER: return "invalid number";
+    default:                                return "unknown parse error";
+    }
+}
+
+static const char *VisionDebug_CircleName(float x, float y)
+{
+    const float tol = 3.0f;
+
+    if (fabsf(x - 0.0f) <= tol && fabsf(y - 0.0f) <= tol) return "CENTER";
+    if (fabsf(x + 20.0f) <= tol && fabsf(y - 20.0f) <= tol) return "TOP_LEFT";
+    if (fabsf(x - 20.0f) <= tol && fabsf(y - 20.0f) <= tol) return "TOP_RIGHT";
+    if (fabsf(x + 20.0f) <= tol && fabsf(y + 20.0f) <= tol) return "BOTTOM_LEFT";
+    if (fabsf(x - 20.0f) <= tol && fabsf(y + 20.0f) <= tol) return "BOTTOM_RIGHT";
+    return "UNKNOWN";
+}
+
+static void VisionDebug_PrintGlobalPair(uint32_t now)
+{
+    const uint32_t pair_max_ms = 250U;
+    uint32_t pair_dt;
+
+    if (g_vision.laser_count == 0U || g_vision.circle_count == 0U) {
+        return;
+    }
+
+    pair_dt = VisionDebug_TimeDiff(g_vision.laser_ms, g_vision.circle_ms);
+    if (pair_dt > pair_max_ms) {
+        printf("[PAIR WAIT] laser/circle time gap=%lums, need <=%lums\r\n",
+               (unsigned long)pair_dt, (unsigned long)pair_max_ms);
+        return;
+    }
+
+    printf("[GLOBAL PAIR] circle=%s ref=(",
+           VisionDebug_CircleName(g_vision.circle_x, g_vision.circle_y));
+    VisionDebug_PrintFixed10(g_vision.circle_x);
+    printf(",");
+    VisionDebug_PrintFixed10(g_vision.circle_y);
+    printf(") laser=(");
+    VisionDebug_PrintFixed10(g_vision.laser_x);
+    printf(",");
+    VisionDebug_PrintFixed10(g_vision.laser_y);
+    printf(") err=(");
+    VisionDebug_PrintFixed10(g_vision.laser_x - g_vision.circle_x);
+    printf(",");
+    VisionDebug_PrintFixed10(g_vision.laser_y - g_vision.circle_y);
+    printf(") pair_dt=%lums age=%lums\r\n",
+           (unsigned long)pair_dt,
+           (unsigned long)VisionDebug_Age(now, g_vision.last_valid_ms));
+}
+
+static void VisionDebug_SendTotalCommand(uint32_t now)
+{
+#if APP_VISION_DEBUG_AUTO_TOTAL
+    static uint32_t last_cmd_ms = 0;
+
+    if (last_cmd_ms == 0U || (now - last_cmd_ms) >= 3000U) {
+        uint8_t ok = vision_send_mode("total");
+        last_cmd_ms = now;
+        printf("[CMD] &mode,total# %s\r\n", (ok != 0U) ? "sent" : "send_fail");
+    }
+#else
+    (void)now;
+#endif
+}
+
+static uint8_t VisionDebug_ButtonEdge(GPIO_TypeDef *port, uint16_t pin, uint8_t *last)
+{
+    uint8_t raw = (HAL_GPIO_ReadPin(port, pin) == GPIO_PIN_RESET) ? 1U : 0U;
+    uint8_t edge = (raw != 0U && *last == 0U) ? 1U : 0U;
+    *last = raw;
+    return edge;
+}
+
 static void VisionDebug_Banner(void)
 {
     printf("\r\n=== VISION DEBUG MODE ===\r\n");
     printf("PC debug: USART1 PA9/PA10, 115200 8N1\r\n");
     printf("MaixCAM : USART2 PA2(TX)->CAM_RX, PA3(RX)<-CAM_TX, 115200 8N1\r\n");
-    printf("Expect  : $HB,n# $LASER,x,y# $FIRE,x,y# $CIRCLE,x,y# $TILT,x,y#\r\n");
+    printf("Expect  : $HB,n# $LASER,x,y# $HOME,dx,dy# $FIRE,x,y# $CIRCLE,x,y# $TILT,x,y#\r\n");
+    printf("Mode   : power-up MaixCAM stays initial; press KEY0 near center circle to send &mode,total#\r\n");
+    printf("Result  : [LINK OK]=connected, [NO RX]=wiring/baud, [DATA ERROR]=bad packet\r\n");
     printf("Notice  : motor/task/menu are disabled in this firmware\r\n\r\n");
 }
 
@@ -99,19 +203,33 @@ static void VisionDebug_Task(void)
 {
     static uint32_t last_stat_ms = 0;
     static uint32_t last_laser_count = 0;
+    static uint32_t last_home_count = 0;
     static uint32_t last_fire_count = 0;
     static uint32_t last_circle_count = 0;
     static uint32_t last_tilt_count = 0;
     static uint32_t last_hb_count = 0;
+    static uint32_t last_bad_count = 0;
+    static uint32_t last_unknown_count = 0;
+    static uint32_t last_uart_error_count = 0;
+    static uint32_t last_pair_laser_count = 0;
+    static uint32_t last_pair_circle_count = 0;
+    static uint8_t last_key0 = 0U;
 
     uint32_t now = HAL_GetTick();
+
+    VisionDebug_SendTotalCommand(now);
+
+    if (VisionDebug_ButtonEdge(GPIOC, GPIO_PIN_5, &last_key0) != 0U) {
+        uint8_t ok = vision_send_mode("total");
+        printf("[CMD] KEY0 -> &mode,total# %s\r\n", (ok != 0U) ? "sent" : "send_fail");
+    }
 
     if (g_vision.hb_count != last_hb_count) {
         last_hb_count = g_vision.hb_count;
         printf("[HB] cnt=%lu value=%d age=%lums, echoed to USART2\r\n",
                (unsigned long)g_vision.hb_count,
                g_vision.hb_value,
-               (unsigned long)(now - g_vision.last_rx_ms));
+               (unsigned long)VisionDebug_Age(now, g_vision.last_rx_ms));
     }
 
     if (g_vision.laser_count != last_laser_count) {
@@ -119,7 +237,15 @@ static void VisionDebug_Task(void)
         g_vision.laser_fresh = 0;
         VisionDebug_PrintCoord("LASER", g_vision.laser_count,
                                g_vision.laser_x, g_vision.laser_y,
-                               now - g_vision.laser_ms);
+                               VisionDebug_Age(now, g_vision.laser_ms));
+    }
+
+    if (g_vision.home_count != last_home_count) {
+        last_home_count = g_vision.home_count;
+        g_vision.home_fresh = 0;
+        VisionDebug_PrintCoord("HOME", g_vision.home_count,
+                               g_vision.home_x, g_vision.home_y,
+                               VisionDebug_Age(now, g_vision.home_ms));
     }
 
     if (g_vision.fire_count != last_fire_count) {
@@ -127,7 +253,7 @@ static void VisionDebug_Task(void)
         g_vision.fire_fresh = 0;
         VisionDebug_PrintCoord("FIRE", g_vision.fire_count,
                                g_vision.fire_x, g_vision.fire_y,
-                               now - g_vision.fire_ms);
+                               VisionDebug_Age(now, g_vision.fire_ms));
     }
 
     if (g_vision.circle_count != last_circle_count) {
@@ -135,7 +261,14 @@ static void VisionDebug_Task(void)
         g_vision.circle_fresh = 0;
         VisionDebug_PrintCoord("CIRCLE", g_vision.circle_count,
                                g_vision.circle_x, g_vision.circle_y,
-                               now - g_vision.circle_ms);
+                               VisionDebug_Age(now, g_vision.circle_ms));
+    }
+
+    if (g_vision.laser_count != last_pair_laser_count ||
+        g_vision.circle_count != last_pair_circle_count) {
+        last_pair_laser_count = g_vision.laser_count;
+        last_pair_circle_count = g_vision.circle_count;
+        VisionDebug_PrintGlobalPair(now);
     }
 
     if (g_vision.tilt_count != last_tilt_count) {
@@ -143,27 +276,74 @@ static void VisionDebug_Task(void)
         g_vision.tilt_fresh = 0;
         VisionDebug_PrintCoord("TILT", g_vision.tilt_count,
                                g_vision.tilt_x, g_vision.tilt_y,
-                               now - g_vision.tilt_ms);
+                               VisionDebug_Age(now, g_vision.tilt_ms));
+    }
+
+    if (g_vision.bad_frame_count != last_bad_count) {
+        last_bad_count = g_vision.bad_frame_count;
+        printf("[DATA ERROR] bad=%lu reason=%s data=\"%s\"\r\n",
+               (unsigned long)g_vision.bad_frame_count,
+               VisionDebug_ErrorName(g_vision.last_bad_reason),
+               g_vision.last_bad_frame);
+    }
+
+    if (g_vision.unknown_count != last_unknown_count) {
+        last_unknown_count = g_vision.unknown_count;
+        printf("[DATA ERROR] unknown_tag=%lu data=\"%s\"\r\n",
+               (unsigned long)g_vision.unknown_count,
+               g_vision.last_unknown_frame);
+    }
+
+    if (g_vision.uart_error_count != last_uart_error_count) {
+        last_uart_error_count = g_vision.uart_error_count;
+        printf("[UART2 ERROR] count=%lu HAL_error=0x%08lX\r\n",
+               (unsigned long)g_vision.uart_error_count,
+               (unsigned long)g_vision.last_uart_error);
     }
 
     if ((now - last_stat_ms) >= 1000U) {
         last_stat_ms = now;
-        printf("[STAT] online=%u ", (unsigned int)vision_is_online(1000U));
-        if (g_vision.last_rx_ms == 0U) {
-            printf("age=never ");
+
+        if (!g_vision.dma_started) {
+            printf("[LINK ERROR] USART2 DMA start failed, HAL_status=%u\r\n",
+                   (unsigned int)g_vision.dma_start_status);
+        } else if (g_vision.rx_byte_count == 0U) {
+            printf("[NO RX] USART2 received 0 bytes; check CAM_TX->PA3, GND and 115200 8N1\r\n");
+        } else if (g_vision.valid_frame_count == 0U) {
+            if (g_vision.frame_count == 0U) {
+                printf("[LINK PARTIAL] bytes are arriving, but no complete $...# frame\r\n");
+            } else {
+                printf("[LINK PARTIAL] complete frames received, but none passed protocol validation\r\n");
+            }
+        } else if (vision_is_online(1500U)) {
+            printf("[LINK OK] valid vision data is active\r\n");
         } else {
-            printf("age=%lums ", (unsigned long)(now - g_vision.last_rx_ms));
+            printf("[LINK TIMEOUT] bytes may arrive, but no valid frame for %lums\r\n",
+                   (unsigned long)(now - g_vision.last_valid_ms));
         }
-        printf("rx=%lu frame=%lu bad=%lu unknown=%lu hb=%lu laser=%lu fire=%lu circle=%lu tilt=%lu\r\n",
+
+        printf("[STAT] dma=%u rx=%lu frame=%lu valid=%lu bad=%lu unknown=%lu uart_err=%lu "
+               "hb=%lu laser=%lu home=%lu fire=%lu circle=%lu tilt=%lu "
+               "byte_age=%lu valid_age=%lu\r\n",
+               (unsigned int)g_vision.dma_started,
                (unsigned long)g_vision.rx_byte_count,
                (unsigned long)g_vision.frame_count,
+               (unsigned long)g_vision.valid_frame_count,
                (unsigned long)g_vision.bad_frame_count,
                (unsigned long)g_vision.unknown_count,
+               (unsigned long)g_vision.uart_error_count,
                (unsigned long)g_vision.hb_count,
                (unsigned long)g_vision.laser_count,
+               (unsigned long)g_vision.home_count,
                (unsigned long)g_vision.fire_count,
                (unsigned long)g_vision.circle_count,
-               (unsigned long)g_vision.tilt_count);
+               (unsigned long)g_vision.tilt_count,
+               (unsigned long)VisionDebug_Age(now, g_vision.last_byte_ms),
+               (unsigned long)VisionDebug_Age(now, g_vision.last_valid_ms));
+
+        if (g_vision.home_count != 0U && g_vision.laser_count == 0U) {
+            printf("[MODE CHECK] Only HOME is arriving: MaixCAM is still initial. Put laser near center circle, then press KEY0 for total.\r\n");
+        }
     }
 }
 #endif
@@ -206,7 +386,9 @@ int main(void)
   MX_TIM2_Init();
   /* USER CODE BEGIN 2 */
   vision_init();      /* 要用视觉才加; 需 USART2+DMA 已初始化 */
-#if APP_VISION_DEBUG_TEST
+#if APP_MOTOR_DEBUG_TEST
+  MotorTest_Init();
+#elif APP_VISION_DEBUG_TEST
   VisionDebug_Banner();
 #else
   Task_Init();        /* 先显示 HOME; 视觉回中心成功后再进入菜单 */
@@ -217,18 +399,22 @@ int main(void)
   /* USER CODE BEGIN WHILE */
   while (1)
   {
-    /* USER CODE END WHILE */
+      /* USER CODE END WHILE */
 
-    /* USER CODE BEGIN 3 */
-#if APP_VISION_DEBUG_TEST
-    vision_task();      /* 收到 $HB,n# 时原样回发给 MaixCAM */
-    VisionDebug_Task();
-    HAL_Delay(5);
+      /* USER CODE BEGIN 3 */
+#if APP_MOTOR_DEBUG_TEST
+      vision_task();
+      MotorTest_Loop();
+#elif APP_VISION_DEBUG_TEST
+      vision_task(); /* 收到 $HB,n# 时原样回发给 MaixCAM */
+      VisionDebug_Task();
+      HAL_Delay(5);
 #else
-    Task_Loop();
-    vision_task();      /* 视觉心跳回发($HB), 现在用视觉, 必须开 */
+      Task_Loop();
+      vision_task(); /* 视觉心跳回发($HB), 现在用视觉, 必须开 */
 #endif
   }
+
   /* USER CODE END 3 */
 }
 
@@ -272,10 +458,10 @@ void SystemClock_Config(void)
 }
 
 /* USER CODE BEGIN 4 */
-int fputc(int ch, FILE *f)
+int __io_putchar(int ch)
 {
-    HAL_UART_Transmit(&huart1, (uint8_t *)&ch, 1, 10);
-    return ch;
+    uint8_t byte = (uint8_t)ch;
+    return (HAL_UART_Transmit(&huart1, &byte, 1, 10) == HAL_OK) ? ch : EOF;
 }
 /* USER CODE END 4 */
 

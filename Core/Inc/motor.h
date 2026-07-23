@@ -16,6 +16,7 @@
 /* ---- 寄存器地址 ---- */
 #define REG_ENABLE       0x00E0   /* 使能 */
 #define REG_TRAP_POS     0x00F6   /* 梯形曲线位置模式(X固件), 7寄存器 */
+#define REG_SPEED_MODE   0x00F6   /* F6 speed mode, 3 registers */
 #define REG_SYNC         0x00FF   /* 广播同步触发 */
 #define REG_STOP         0x00FE   /* 立即停止 */
 #define REG_ZERO_POS     0x000A   /* 当前位置清零 */
@@ -24,8 +25,12 @@
 #define REG_READ_STATUS  0x0054   /* X42S: 回零标志+电机标志(功能码0x04) */
 
 /* ---- 方向 ---- */
-#define MB_DIR_CW        0x00     /* 收线(绳变短), 实测使位置增大 */
-#define MB_DIR_CCW       0x01     /* 放线(绳变长), 实测使位置减小 */
+#define MB_DIR_CW        0x00     /* 驱动器 CW, 位置增大 */
+#define MB_DIR_CCW       0x01     /* 驱动器 CCW, 位置减小 */
+
+/* ---- 绳长动作 (卷线机构镜像安装) ---- */
+#define MOTOR_CABLE_PAYOUT  0U
+#define MOTOR_CABLE_TAKEUP  1U
 
 /* ---- 运动模式 ---- */
 #define MB_MODE_REL_LAST 0x00     /* 相对上一目标位置 */
@@ -52,11 +57,15 @@ typedef enum {
 
 uint16_t       modbus_crc16(const uint8_t *data, uint16_t len);
 const char    *motor_result_str(mb_result_t r);
+uint8_t        motor_cable_direction(uint8_t addr, uint8_t cable_action);
 
 mb_result_t motor_enable(uint8_t addr, uint8_t on, uint8_t sync);
 mb_result_t motor_move_pos(uint8_t addr, uint8_t dir,
                            uint16_t vmax_0p1rpm, uint32_t pos_0p1deg,
                            uint8_t mode, uint8_t sync);
+mb_result_t motor_run_speed(uint8_t addr, uint8_t dir,
+                            uint16_t speed_0p1rpm,
+                            uint8_t acc, uint8_t sync);
 mb_result_t motor_sync_trigger(void);
 mb_result_t motor_stop(uint8_t addr, uint8_t sync);
 mb_result_t motor_zero_position(uint8_t addr);

@@ -32,7 +32,8 @@ message("Build type: " ${CMAKE_BUILD_TYPE})
 enable_language(C ASM)
 
 # Create an executable object type
-add_executable(${CMAKE_PROJECT_NAME})
+add_executable(${CMAKE_PROJECT_NAME}
+        )
 
 # Add STM32CubeMX generated sources
 add_subdirectory(cmake/stm32cubemx)
@@ -45,6 +46,7 @@ target_link_directories(${CMAKE_PROJECT_NAME} PRIVATE
 # Add sources to executable
 target_sources(${CMAKE_PROJECT_NAME} PRIVATE
     Core/Src/motor.c
+    Core/Src/motor_test.c
     Core/Src/kinematics.c
     Core/Src/motion.c
     Core/Src/vision.c
@@ -62,6 +64,10 @@ target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE
 # Add project symbols (macros)
 target_compile_definitions(${CMAKE_PROJECT_NAME} PRIVATE
     # Add user defined symbols
+)
+
+target_link_options(${CMAKE_PROJECT_NAME} PRIVATE
+    -u _printf_float
 )
 
 # Remove wrong libob.a library dependency when using cpp files
