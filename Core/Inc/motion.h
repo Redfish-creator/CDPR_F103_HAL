@@ -17,11 +17,34 @@
 #define MOTION_MIN_SCALE         0.05f   /* 速度缩放下限, 防止过慢/为0 */
 #define MOTION_REACH_TIMEOUT_MS  10000   /* 等到位超时 */
 
+typedef struct {
+    uint32_t sequence;
+    float x_now;
+    float y_now;
+    float x_next;
+    float y_next;
+    float dL[4];
+    float cmd_cm[4];
+    float gain[4];
+    uint8_t dir[4];
+    uint32_t mag[4];
+    uint16_t vmax[4];
+    uint8_t bal;
+    uint8_t attempted_mask;
+    uint8_t trigger_attempted;
+    uint8_t completed;
+    uint8_t failed_motor;
+    mb_result_t motor_result[4];
+    mb_result_t trigger_result;
+    uint32_t estimated_move_ms;
+} motion_segment_report_t;
+
 void        motion_init(void);                 /* 上电后调一次 */
 mb_result_t motion_enable_all(uint8_t on);     /* 使能(1)/松开(0)全部 4 电机 */
 mb_result_t motion_set_home(void);             /* 吊舱此刻在中心: 清零编码器+设基准 */
 mb_result_t motion_move_to(float x, float y);  /* 协调移动吊舱中心到(x,y), 阻塞到到位 */
 void        motion_get_pos(float *x, float *y);/* 取当前(软件跟踪)吊舱位置 */
+void        motion_get_last_segment_report(motion_segment_report_t *report);
 uint8_t fine_tune_to(float xt, float yt);
 
 
@@ -34,6 +57,10 @@ mb_result_t motion_move_between_nohome_relaxed_quick(float x_now, float y_now,
                                                      float x_next, float y_next,
                                                      float takeup_gain,
                                                      float payout_gain);
+mb_result_t motion_move_between_nohome_patrol(float x_now, float y_now,
+                                              float x_next, float y_next,
+                                              float takeup_gain,
+                                              float payout_gain);
 mb_result_t motion_jog_step_start(float x_now, float y_now,
                                   float x_next, float y_next,
                                   float takeup_gain,

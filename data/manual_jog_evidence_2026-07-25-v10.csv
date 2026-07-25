@@ -1,0 +1,8 @@
+capture_date,run_id,event_order,event_type,direction,run_cm,soft_x_cm,soft_y_cm,limit_cm,motor,result,rx_len,elapsed_ms,laser_x_cm,laser_y_cm,circle_x_cm,circle_y_cm,err_x_cm,err_y_cm,tilt_x,tilt_y,notes
+2026-07-25,V10-PREARM-RX,1,BOOT,,,,,,,,,,,,,,,,,"boot=Q2-CAL-JOG-v10-PREARM-RX"
+2026-07-25,V10-PREARM-RX,2,JOG_CHAIN_OK,UP,4.00,0.00,4.25,20.0,,OK,,,0.70,2.20,1.10,-3.50,-0.40,5.70,-0.18,-0.52,"first UP group completed"
+2026-07-25,V10-PREARM-RX,3,JOG_CHAIN_OK,UP,4.00,0.00,8.49,20.0,,OK,,,0.70,2.10,1.10,-8.60,-0.40,10.70,-0.17,-1.00,"second UP group completed"
+2026-07-25,V10-PREARM-RX,4,JOG_CHAIN_OK,LEFT,4.00,-4.15,8.49,20.0,,OK,,,0.50,1.90,6.10,-11.50,-5.60,13.40,0.31,-1.00,"first LEFT group completed"
+2026-07-25,V10-PREARM-RX,5,JOG_CHAIN_OK,LEFT,4.00,-8.32,8.49,20.0,,OK,,,0.50,2.10,-11.30,3.80,11.90,-1.70,-0.99,0.54,"second LEFT group completed; circle target changed by vision"
+2026-07-25,V10-PREARM-RX,6,JOG_CHAIN_FAIL,DOWN,4.00,-8.32,8.49,20.0,M2,TIMEOUT,0,402,0.60,2.20,-11.00,4.40,11.60,-2.20,-1.00,0.54,"func=0x10 tx_len=19 expect=8 tx=02 10 00 F0 00 05 0A 00 01 01 5D 07 DF 00 00 02 01 15 A5 rx=; PC0-PC3 locked until KEY0 rehome"
+2026-07-25,V10-PREARM-RX,7,KEY0_RECOVERY,,,,,,,,,,,,,,,,,"MANUAL recovery complete: KEY0 rehome OK; PC0-PC3 unlocked"

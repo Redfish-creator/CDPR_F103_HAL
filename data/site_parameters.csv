@@ -1,0 +1,295 @@
+category,item,axis_or_motor,value,unit,source,status,notes
+layout,origin,x,0,cm,现场约定,confirmed,中心橙色圆/板面中心
+layout,origin,y,0,cm,现场约定,confirmed,中心橙色圆/板面中心
+layout,axis,+x,right,orientation,现场约定,confirmed,右为正方向
+layout,axis,+y,up,orientation,现场约定,confirmed,上为正方向
+layout,motor_anchor,M1_x,-30.0,cm,Core/Inc/kinematics.h,confirmed,M1左下
+layout,motor_anchor,M1_y,-30.0,cm,Core/Inc/kinematics.h,confirmed,M1左下
+layout,motor_anchor,M2_x,30.0,cm,Core/Inc/kinematics.h,confirmed,M2右上
+layout,motor_anchor,M2_y,30.0,cm,Core/Inc/kinematics.h,confirmed,M2右上
+layout,motor_anchor,M3_x,30.0,cm,Core/Inc/kinematics.h,confirmed,M3右下
+layout,motor_anchor,M3_y,-30.0,cm,Core/Inc/kinematics.h,confirmed,M3右下
+layout,motor_anchor,M4_x,-30.0,cm,Core/Inc/kinematics.h,confirmed,M4左上
+layout,motor_anchor,M4_y,30.0,cm,Core/Inc/kinematics.h,confirmed,M4左上
+layout,height,pulley_z,38.75,cm,Core/Inc/kinematics.h,needs-confirm,现场需复测
+layout,height,gondola_z,20.0,cm,Core/Inc/kinematics.h,needs-confirm,现场需复测
+layout,height,dz,18.75,cm,Core/Inc/kinematics.h,confirmed-from-constants,38.75-20.0
+layout,gondola,half_length_x,4.25,cm,Core/Inc/kinematics.h,needs-confirm,对应8.5cm/2
+layout,gondola,half_width_y,3.25,cm,Core/Inc/kinematics.h,needs-confirm,对应6.5cm/2
+layout,spool,effective_radius,5.25,mm,Core/Inc/kinematics.h,needs-confirm,固定半径模型
+layout,spool,counts_per_cm,1091,0.1deg/cm,Core/Inc/kinematics.h,approx,公式约等于1091
+layout,limit,xy_soft_limit,22.0,cm,Core/Inc/kinematics.h,confirmed-from-code,不是机械硬限位
+vision,target_center,x,0,cm,串口/现场,confirmed,中心圆
+vision,target_center,y,0,cm,串口/现场,confirmed,中心圆
+vision,target_LT,x,-20,cm,串口/现场,confirmed,左上橙色圆参考
+vision,target_LT,y,20,cm,串口/现场,confirmed,左上橙色圆参考
+vision,target_RT,x,20,cm,串口/现场,confirmed,右上橙色圆参考
+vision,target_RT,y,20,cm,串口/现场,confirmed,右上橙色圆参考
+vision,target_RB,x,20,cm,串口/现场,confirmed,右下橙色圆参考
+vision,target_RB,y,-20,cm,串口/现场,confirmed,右下橙色圆参考
+vision,target_LB,x,-20,cm,串口/现场,confirmed,左下橙色圆参考
+vision,target_LB,y,-20,cm,串口/现场,confirmed,左下橙色圆参考
+patrol,nominal_LT,soft_x,-16.0,cm,Core/Src/task.c,confirmed-from-code,未学习前软目标
+patrol,nominal_LT,soft_y,15.0,cm,Core/Src/task.c,confirmed-from-code,未学习前软目标
+patrol,nominal_RT,soft_x,16.0,cm,Core/Src/task.c,confirmed-from-code,未学习前软目标
+patrol,nominal_RT,soft_y,17.5,cm,Core/Src/task.c,confirmed-from-code,未学习前软目标
+patrol,nominal_RB,soft_x,16.0,cm,Core/Src/task.c,confirmed-from-code,未学习前软目标
+patrol,nominal_RB,soft_y,-15.0,cm,Core/Src/task.c,confirmed-from-code,未学习前软目标
+patrol,nominal_LB,soft_x,-16.0,cm,Core/Src/task.c,confirmed-from-code,未学习前软目标
+patrol,nominal_LB,soft_y,-15.0,cm,Core/Src/task.c,confirmed-from-code,未学习前软目标
+calibration,LT_avg_n2,soft_x,-19.47,cm,serial PATROL CAL TABLE,confirmed,n=2
+calibration,LT_avg_n2,soft_y,14.27,cm,serial PATROL CAL TABLE,confirmed,n=2
+calibration,LT_avg_n2,err_x,0.25,cm,serial PATROL CAL TABLE,confirmed,n=2
+calibration,LT_avg_n2,err_y,0.05,cm,serial PATROL CAL TABLE,confirmed,n=2
+calibration,LT_avg_n2,tilt_x,-0.23,tilt,serial PATROL CAL TABLE,confirmed,n=2
+calibration,LT_avg_n2,tilt_y,0.51,tilt,serial PATROL CAL TABLE,confirmed,n=2
+calibration,LT_avg_n2,enc_m1,4430,0.1deg,serial PATROL CAL TABLE,confirmed,n=2
+calibration,LT_avg_n2,enc_m2,-9210,0.1deg,serial PATROL CAL TABLE,confirmed,n=2
+calibration,LT_avg_n2,enc_m3,22035,0.1deg,serial PATROL CAL TABLE,confirmed,n=2
+calibration,LT_avg_n2,enc_m4,19883,0.1deg,serial PATROL CAL TABLE,confirmed,n=2
+calibration,RB_avg_n1,soft_x,20.01,cm,serial PATROL CAL TABLE,confirmed,n=1
+calibration,RB_avg_n1,soft_y,-16.80,cm,serial PATROL CAL TABLE,confirmed,n=1
+calibration,RB_avg_n1,err_x,-0.20,cm,serial PATROL CAL TABLE,confirmed,n=1
+calibration,RB_avg_n1,err_y,-0.10,cm,serial PATROL CAL TABLE,confirmed,n=1
+calibration,RB_avg_n1,tilt_x,0.14,tilt,serial PATROL CAL TABLE,confirmed,n=1
+calibration,RB_avg_n1,tilt_y,-0.24,tilt,serial PATROL CAL TABLE,confirmed,n=1
+calibration,RB_avg_n1,enc_m1,9534,0.1deg,serial PATROL CAL TABLE,confirmed,n=1
+calibration,RB_avg_n1,enc_m2,-6913,0.1deg,serial PATROL CAL TABLE,confirmed,n=1
+calibration,RB_avg_n1,enc_m3,-21404,0.1deg,serial PATROL CAL TABLE,confirmed,n=1
+calibration,RB_avg_n1,enc_m4,-23856,0.1deg,serial PATROL CAL TABLE,confirmed,n=1
+calibration,RT_avg_n0,count,0,samples,serial PATROL CAL TABLE,confirmed,未视觉确认
+calibration,LB_avg_n0,count,0,samples,serial PATROL CAL TABLE,confirmed,未视觉确认
+node,LT-IN1,soft_x,-4.00,cm,serial PATROL NODE,confirmed,step=1/28
+node,LT-IN1,soft_y,4.00,cm,serial PATROL NODE,confirmed,step=1/28
+node,LT-IN1,enc_m1,521,0.1deg,serial PATROL NODE,confirmed,step=1/28
+node,LT-IN1,enc_m2,-314,0.1deg,serial PATROL NODE,confirmed,step=1/28
+node,LT-IN1,enc_m3,5587,0.1deg,serial PATROL NODE,confirmed,step=1/28
+node,LT-IN1,enc_m4,5413,0.1deg,serial PATROL NODE,confirmed,step=1/28
+node,LT-IN2,soft_x,-8.00,cm,serial PATROL NODE,confirmed,step=2/28
+node,LT-IN2,soft_y,8.00,cm,serial PATROL NODE,confirmed,step=2/28
+node,LT-IN2,enc_m1,1880,0.1deg,serial PATROL NODE,confirmed,step=2/28
+node,LT-IN2,enc_m2,-1473,0.1deg,serial PATROL NODE,confirmed,step=2/28
+node,LT-IN2,enc_m3,10761,0.1deg,serial PATROL NODE,confirmed,step=2/28
+node,LT-IN2,enc_m4,10572,0.1deg,serial PATROL NODE,confirmed,step=2/28
+node,LT-APP,soft_x,-12.00,cm,serial PATROL NODE,confirmed,step=3/28
+node,LT-APP,soft_y,11.50,cm,serial PATROL NODE,confirmed,step=3/28
+node,LT-APP,enc_m1,3533,0.1deg,serial PATROL NODE,confirmed,step=3/28
+node,LT-APP,enc_m2,-3613,0.1deg,serial PATROL NODE,confirmed,step=3/28
+node,LT-APP,enc_m3,15430,0.1deg,serial PATROL NODE,confirmed,step=3/28
+node,LT-APP,enc_m4,15052,0.1deg,serial PATROL NODE,confirmed,step=3/28
+node,LT,soft_x,-19.47,cm,serial PATROL NODE,confirmed,step=4/28 learned
+node,LT,soft_y,14.27,cm,serial PATROL NODE,confirmed,step=4/28 learned
+node,LT,enc_m1,4406,0.1deg,serial PATROL NODE,confirmed,step=4/28 learned
+node,LT,enc_m2,-8960,0.1deg,serial PATROL NODE,confirmed,step=4/28 learned
+node,LT,enc_m3,21957,0.1deg,serial PATROL NODE,confirmed,step=4/28 learned
+node,LT,enc_m4,19882,0.1deg,serial PATROL NODE,confirmed,step=4/28 learned
+node,RT-IN1,soft_x,4.00,cm,serial PATROL NODE,confirmed,step=8/28
+node,RT-IN1,soft_y,4.00,cm,serial PATROL NODE,confirmed,step=8/28
+node,RT-IN1,enc_m1,5587,0.1deg,serial PATROL NODE,confirmed,step=8/28
+node,RT-IN1,enc_m2,5413,0.1deg,serial PATROL NODE,confirmed,step=8/28
+node,RT-IN1,enc_m3,522,0.1deg,serial PATROL NODE,confirmed,step=8/28
+node,RT-IN1,enc_m4,-314,0.1deg,serial PATROL NODE,confirmed,step=8/28
+node,RT-IN2,soft_x,8.00,cm,serial PATROL NODE,confirmed,step=9/28
+node,RT-IN2,soft_y,8.00,cm,serial PATROL NODE,confirmed,step=9/28
+node,RT-IN2,enc_m1,10760,0.1deg,serial PATROL NODE,confirmed,step=9/28
+node,RT-IN2,enc_m2,10572,0.1deg,serial PATROL NODE,confirmed,step=9/28
+node,RT-IN2,enc_m3,1880,0.1deg,serial PATROL NODE,confirmed,step=9/28
+node,RT-IN2,enc_m4,-1473,0.1deg,serial PATROL NODE,confirmed,step=9/28
+node,RT-APP,soft_x,12.00,cm,serial PATROL NODE,confirmed,step=10/28
+node,RT-APP,soft_y,12.00,cm,serial PATROL NODE,confirmed,step=10/28
+node,RT-APP,enc_m1,15746,0.1deg,serial PATROL NODE,confirmed,step=10/28
+node,RT-APP,enc_m2,15350,0.1deg,serial PATROL NODE,confirmed,step=10/28
+node,RT-APP,enc_m3,4015,0.1deg,serial PATROL NODE,confirmed,step=10/28
+node,RT-APP,enc_m4,-3424,0.1deg,serial PATROL NODE,confirmed,step=10/28
+node,RT,soft_x,16.00,cm,serial PATROL NODE,not-confirmed,vision saw center circle
+node,RT,soft_y,17.50,cm,serial PATROL NODE,not-confirmed,vision saw center circle
+node,RT,enc_m1,21757,0.1deg,serial PATROL NODE,not-confirmed,vision saw center circle
+node,RT,enc_m2,20215,0.1deg,serial PATROL NODE,not-confirmed,vision saw center circle
+node,RT,enc_m3,8338,0.1deg,serial PATROL NODE,not-confirmed,vision saw center circle
+node,RT,enc_m4,-5713,0.1deg,serial PATROL NODE,not-confirmed,vision saw center circle
+node,RB-IN1,soft_x,4.00,cm,serial PATROL NODE,confirmed,step=15/28
+node,RB-IN1,soft_y,-4.00,cm,serial PATROL NODE,confirmed,step=15/28
+node,RB-IN1,enc_m1,313,0.1deg,serial PATROL NODE,confirmed,step=15/28
+node,RB-IN1,enc_m2,-522,0.1deg,serial PATROL NODE,confirmed,step=15/28
+node,RB-IN1,enc_m3,-5413,0.1deg,serial PATROL NODE,confirmed,step=15/28
+node,RB-IN1,enc_m4,-5587,0.1deg,serial PATROL NODE,confirmed,step=15/28
+node,RB-IN2,soft_x,8.00,cm,serial PATROL NODE,confirmed,step=16/28
+node,RB-IN2,soft_y,-8.00,cm,serial PATROL NODE,confirmed,step=16/28
+node,RB-IN2,enc_m1,1472,0.1deg,serial PATROL NODE,confirmed,step=16/28
+node,RB-IN2,enc_m2,-1880,0.1deg,serial PATROL NODE,confirmed,step=16/28
+node,RB-IN2,enc_m3,-10573,0.1deg,serial PATROL NODE,confirmed,step=16/28
+node,RB-IN2,enc_m4,-10761,0.1deg,serial PATROL NODE,confirmed,step=16/28
+node,RB-APP,soft_x,12.00,cm,serial PATROL NODE,confirmed,step=17/28
+node,RB-APP,soft_y,-11.50,cm,serial PATROL NODE,confirmed,step=17/28
+node,RB-APP,enc_m1,3612,0.1deg,serial PATROL NODE,confirmed,step=17/28
+node,RB-APP,enc_m2,-3535,0.1deg,serial PATROL NODE,confirmed,step=17/28
+node,RB-APP,enc_m3,-15051,0.1deg,serial PATROL NODE,confirmed,step=17/28
+node,RB-APP,enc_m4,-15429,0.1deg,serial PATROL NODE,confirmed,step=17/28
+node,RB,soft_x,20.01,cm,serial PATROL CAL,confirmed,learned target
+node,RB,soft_y,-16.80,cm,serial PATROL CAL,confirmed,learned target
+node,RB,enc_m1,9534,0.1deg,serial PATROL CAL,confirmed,learned target
+node,RB,enc_m2,-6913,0.1deg,serial PATROL CAL,confirmed,learned target
+node,RB,enc_m3,-21404,0.1deg,serial PATROL CAL,confirmed,learned target
+node,RB,enc_m4,-23856,0.1deg,serial PATROL CAL,confirmed,learned target
+node,LB-IN1,soft_x,-4.00,cm,serial PATROL NODE,confirmed,step=22/28
+node,LB-IN1,soft_y,-4.00,cm,serial PATROL NODE,confirmed,step=22/28
+node,LB-IN1,enc_m1,-5413,0.1deg,serial PATROL NODE,confirmed,step=22/28
+node,LB-IN1,enc_m2,-5587,0.1deg,serial PATROL NODE,confirmed,step=22/28
+node,LB-IN1,enc_m3,314,0.1deg,serial PATROL NODE,confirmed,step=22/28
+node,LB-IN1,enc_m4,-522,0.1deg,serial PATROL NODE,confirmed,step=22/28
+failure,latest_abort,waypoint,23,count,serial log,confirmed,LB-IN2
+failure,latest_abort,segment,3,count,serial log,confirmed,seg=3/3
+failure,latest_abort,from_x,-6.67,cm,serial log,confirmed,LB-IN2
+failure,latest_abort,from_y,-6.67,cm,serial log,confirmed,LB-IN2
+failure,latest_abort,to_x,-8.00,cm,serial log,confirmed,LB-IN2
+failure,latest_abort,to_y,-8.00,cm,serial log,confirmed,LB-IN2
+failure,latest_abort,dL_m1,-1.54,cm,serial log,confirmed,negative=takeup
+failure,latest_abort,dL_m2,1.75,cm,serial log,confirmed,positive=payout
+failure,latest_abort,dL_m3,0.43,cm,serial log,confirmed,positive=payout
+failure,latest_abort,dL_m4,0.49,cm,serial log,confirmed,positive=payout
+failure,latest_abort,cmd_m1,1.54,cm,serial log,confirmed,command magnitude
+failure,latest_abort,cmd_m2,1.51,cm,serial log,confirmed,command magnitude after old balance heuristic
+failure,latest_abort,cmd_m3,0.44,cm,serial log,confirmed,command magnitude
+failure,latest_abort,cmd_m4,0.50,cm,serial log,confirmed,command magnitude
+failure,latest_abort,motor,3,index,serial log,confirmed,M3 failed
+failure,latest_abort,result,CRC_BAD,status,serial log,confirmed,attempt1 REJECTED then CRC_BAD twice
+threshold,HOME_OK_CM,value,0.6,cm,Core/Src/task.c,confirmed-from-code,
+threshold,HOME_VISION_AGE_MS,value,500,ms,Core/Src/task.c,confirmed-from-code,
+threshold,MANUAL_CENTER_TENSION_COUNTS,value,40,0.1deg,Core/Src/task.c,confirmed-from-code,
+threshold,EDGE_PATROL_OK_CM,value,0.8,cm,Core/Src/task.c,confirmed-from-code,
+threshold,EDGE_PATROL_FINE_STEP_CM,value,0.45,cm,Core/Src/task.c,confirmed-from-code,
+threshold,MOTION_BUFFER_RETRY_MAX,value,3,attempts,Core/Src/motion.c,confirmed-from-code,
+threshold,MOTION_PATROL_BALANCE_RADIUS_CM,value,8.0,cm,Core/Src/motion.c,historical-disabled,old balance heuristic radius
+threshold,MOTION_PATROL_DOM_PAYOUT_RATIO,value,0.70,ratio,Core/Src/motion.c,historical-disabled,old balance heuristic ratio
+threshold,MOTION_PATROL_DOM_PAYOUT_GAIN,value,1.00,gain,Core/Src/motion.c,active-safe-neutral,old 0.86 retained only in historical logs
+threshold,MOTION_PATROL_SIDE_PAYOUT_GAIN,value,1.00,gain,Core/Src/motion.c,active-safe-neutral,old 1.03 retained only in historical logs
+threshold,MOTION_PATROL_BALANCE_ENABLE,value,0,boolean,Core/Src/motion.c,active-safe,unverified patrol balance compensation disabled after cable break
+threshold,MOTION_PATROL_BASE_VMAX,value,300,0.1RPM,Core/Src/motion.c,active-safe,patrol base speed reduced
+threshold,MOTION_MANUAL_JOG_BASE_VMAX,value,600,0.1RPM,Core/Src/motion.c,active-safe,retained first-question manual jog speed
+threshold,MOTION_MANUAL_JOG_INTER_CMD_DELAY_MS,value,120,ms,Core/Src/motion.c,active-trial,V11 increased after V10 M2 rx_len=0 402ms manual timeout
+threshold,MOTION_PATROL_INTER_CMD_DELAY_MS,value,160,ms,Core/Src/motion.c,active-trial,V11 increased after V10 M2 rx_len=0 401ms patrol timeout
+threshold,MOTION_M2_PRE_CMD_EXTRA_DELAY_MS,value,120,ms,Core/Src/motion.c,active-trial,V11 M2-specific quiet before 0x10 buffered write
+threshold,MOTION_M2_POST_CMD_EXTRA_DELAY_MS,value,80,ms,Core/Src/motion.c,active-trial,V11 M2-specific quiet after successful 0x10 buffered write
+threshold,EDGE_PATROL_SEGMENT_READ_GAP_MS,value,80,ms,Core/Src/task.c,active-trial,V9 keeps per-segment encoder logging while lowering read transaction density
+threshold,EDGE_PATROL_POST_READ_QUIET_MS,value,120,ms,Core/Src/task.c,active-trial,V9 quiet window after M4 encoder read before next patrol segment
+threshold,MANUAL_JOG_RUN_CM,value,4.0,cm,Core/Src/task.c,active-safe,fixed throughout plane; only final boundary remainder is shorter
+threshold,MANUAL_JOG_SAFE_LIMIT_CM,value,20.0,cm,Core/Src/task.c,active-safe,soft-coordinate limit; physical visual boundary still requires confirmation
+threshold,EDGE_PATROL_TAKEUP_GAIN,value,0.99,gain,Core/Src/task.c,active-trial,patrol 1 percent less take-up than geometry
+threshold,EDGE_PATROL_PAYOUT_GAIN,value,1.01,gain,Core/Src/task.c,active-trial,patrol 1 percent more payout than geometry
+threshold,MANUAL_JOG_TAKEUP_GAIN,value,1.00,gain,Core/Src/task.c,active-safe,P4 manual jog returned to neutral after loose posture observation
+threshold,MANUAL_JOG_PAYOUT_GAIN,value,1.00,gain,Core/Src/task.c,active-safe,P4 manual jog returned to neutral after loose posture observation
+threshold,MANUAL_JOG_GAP_MS,value,20,ms,Core/Src/task.c,active-safe,inter-segment jog gap retained
+threshold,MANUAL_JOG_X_UP_COMP,value,0.42,ratio,Core/Src/task.c,active-field,retained because current path was observed straighter
+threshold,MB_TX_TIMEOUT,value,50,ms,Core/Src/motor.c,confirmed-from-code,USART3 Modbus blocking transmit timeout
+threshold,MB_RX_TIMEOUT,value,400,ms,Core/Src/motor.c,active-trial,V10 USART3 DMA response window widened after rx_len=0 251ms patrol failures
+threshold,MB_RX_INTERBYTE_TIMEOUT,value,20,ms,Core/Src/motor.c,confirmed-from-code,stop waiting after a partial DMA frame becomes idle
+threshold,MB_DMA_RX_CAPACITY,value,64,bytes,Core/Src/motor.c,confirmed-from-code,DMA1 Channel3 USART3_RX buffer capacity
+threshold,MB_RX_PREARM_NON_06,value,1,boolean,Core/Src/motor.c,active-trial,V10 pre-arms DMA before reads and 0x10 writes; 0x06 is excluded because echo equals normal response
+failure,v10_manual_jog_abort,motor,2,index,serial v10,confirmed,M2 failed during DOWN jog start
+failure,v10_manual_jog_abort,result,TIMEOUT,status,serial v10,confirmed,func=0x10 rx_len=0 elapsed=402ms
+failure,v10_manual_jog_abort,soft_x,-8.32,cm,serial v10,confirmed,soft is controller coordinate
+failure,v10_manual_jog_abort,soft_y,8.49,cm,serial v10,confirmed,soft is controller coordinate
+failure,v10_patrol_abort,waypoint,10,count,serial v10,confirmed,RT-APP
+failure,v10_patrol_abort,segment,2,count,serial v10,confirmed,seg=2/5
+failure,v10_patrol_abort,from_x,8.80,cm,serial v10,confirmed,RT-APP
+failure,v10_patrol_abort,from_y,8.80,cm,serial v10,confirmed,RT-APP
+failure,v10_patrol_abort,to_x,9.60,cm,serial v10,confirmed,RT-APP
+failure,v10_patrol_abort,to_y,9.60,cm,serial v10,confirmed,RT-APP
+failure,v10_patrol_abort,motor,2,index,serial v10,confirmed,M2 failed after M1 OK; M3/M4 not attempted
+failure,v10_patrol_abort,result,TIMEOUT,status,serial v10,confirmed,func=0x10 rx_len=0 elapsed=401ms trigger_attempted=0 attempted=0x03
+hardware,programming_voltage,value,3.24,V,ST-LINK/CubeProgrammer session,confirmed,programming-time board voltage
+hardware,mcu,flash,256,KB,ST-LINK/CubeProgrammer session,confirmed,STM32F103 high-density
+hardware,usart1,baud,115200,baud,Core/Src/usart.c,confirmed-from-code,PC debug 8N1
+hardware,usart2,baud,115200,baud,Core/Src/usart.c,confirmed-from-code,MaixCAM 8N1
+hardware,usart3,baud,115200,baud,Core/Src/usart.c,confirmed-from-code,RS485 motor 8N1
+hardware,usart3_rx_dma,channel,3,index,Core/Src/motor.c,confirmed-from-code,DMA1 Channel3 fixed STM32F103 USART3_RX mapping
+threshold,MOTION_NOHOME_INTER_CMD_DELAY_MS,value,160,ms,Core/Src/motion.c,active-trial,V12 visual zero/nohome buffered-write base gap after CENTER-RT M2 timeout
+threshold,TASK_M2_BUFFER_PRE_CMD_EXTRA_DELAY_MS,value,120,ms,Core/Src/task.c,active-trial,V12 M2-specific quiet before task-level manual/return/tension buffered write
+threshold,TASK_M2_BUFFER_POST_CMD_EXTRA_DELAY_MS,value,80,ms,Core/Src/task.c,active-trial,V12 M2-specific quiet after successful task-level manual/return/tension buffered write
+threshold,EDGE_PATROL_CENTER_RESET_RETRY_MAX,value,1,attempts,Core/Src/task.c,active-safe,V12 one automatic safe recovery after patrol center-reset auto-zero failure
+threshold,EDGE_PATROL_CENTER_RESET_RETRY_WAIT_MS,value,800,ms,Core/Src/task.c,active-safe,V12 stop-and-wait before motor return plus visual zero recovery
+failure,v11_patrol_abort,waypoint,14,count,serial v11,confirmed,CENTER-RT completed then visual center reset failed
+failure,v11_patrol_abort,phase,center_reset,phase,serial v11,confirmed,not a patrol segment motion failure
+failure,v11_patrol_abort,motor,2,index,serial v11,confirmed,M2 failed during nohome visual fine zero after CENTER-RT
+failure,v11_patrol_abort,result,TIMEOUT,status,serial v11,confirmed,func=0x10 rx_len=0 expect=8 elapsed=402ms
+failure,v11_patrol_abort,from_x,2.20,cm,serial v11,confirmed,nohome auto home k=4
+failure,v11_patrol_abort,from_y,2.00,cm,serial v11,confirmed,nohome auto home k=4
+failure,v11_patrol_abort,to_x,1.83,cm,serial v11,confirmed,nohome auto home k=4
+failure,v11_patrol_abort,to_y,1.66,cm,serial v11,confirmed,nohome auto home k=4
+failure,v11_patrol_abort,dL_m1,-0.45,cm,serial v11,confirmed,negative=takeup
+failure,v11_patrol_abort,dL_m2,0.44,cm,serial v11,confirmed,positive=payout
+failure,v11_patrol_abort,dL_m3,-0.02,cm,serial v11,confirmed,negative=takeup
+failure,v11_patrol_abort,dL_m4,-0.05,cm,serial v11,confirmed,negative=takeup
+failure,v11_patrol_abort,cmd_m1,0.45,cm,serial v11,confirmed,command magnitude
+failure,v11_patrol_abort,cmd_m2,0.44,cm,serial v11,confirmed,command magnitude
+failure,v11_patrol_abort,cmd_m3,0.02,cm,serial v11,confirmed,command magnitude
+failure,v11_patrol_abort,cmd_m4,0.05,cm,serial v11,confirmed,command magnitude
+calibration,v11_LT_n1,soft_x,-17.75,cm,serial v11 PATROL CAL,confirmed,n=1
+calibration,v11_LT_n1,soft_y,15.07,cm,serial v11 PATROL CAL,confirmed,n=1
+calibration,v11_LT_n1,err_x,0.40,cm,serial v11 PATROL CAL,confirmed,n=1
+calibration,v11_LT_n1,err_y,-0.60,cm,serial v11 PATROL CAL,confirmed,n=1
+calibration,v11_LT_n1,enc,"[5438,-7927,23801,19557]",0.1deg,serial v11 PATROL CAL,confirmed,n=1
+calibration,v11_RT_n1,soft_x,17.45,cm,serial v11 PATROL CAL,confirmed,n=1
+calibration,v11_RT_n1,soft_y,18.54,cm,serial v11 PATROL CAL,confirmed,n=1
+calibration,v11_RT_n1,err_x,-0.40,cm,serial v11 PATROL CAL,confirmed,n=1
+calibration,v11_RT_n1,err_y,-0.60,cm,serial v11 PATROL CAL,confirmed,n=1
+calibration,v11_RT_n1,enc,"[26170,21076,8954,-6840]",0.1deg,serial v11 PATROL CAL,confirmed,n=1
+threshold,EDGE_PATROL_PROFILE_LT_TAKEUP,M1..M4,"[1.03,1.03,1.03,1.03]",gain,Core/Src/task.c,rolled-back,V13 LT-TIGHT takeup scale removed from current V12 code
+threshold,EDGE_PATROL_PROFILE_LT_PAYOUT,M1..M4,"[0.97,0.97,0.97,0.97]",gain,Core/Src/task.c,rolled-back,V13 LT-TIGHT payout scale removed from current V12 code
+threshold,EDGE_PATROL_PROFILE_RT_TAKEUP,M1..M4,"[0.98,0.95,0.98,0.98]",gain,Core/Src/task.c,rolled-back,V13 RT-SOFT takeup scale removed from current V12 code
+threshold,EDGE_PATROL_PROFILE_RT_PAYOUT,M1..M4,"[1.02,1.00,1.02,1.02]",gain,Core/Src/task.c,rolled-back,V13 RT-SOFT payout scale removed from current V12 code
+threshold,EDGE_PATROL_PROFILE_RB_TAKEUP,M1..M4,"[1.00,1.00,0.99,1.00]",gain,Core/Src/task.c,rolled-back,V13 RB-M4-HOLD takeup scale removed from current V12 code
+threshold,EDGE_PATROL_PROFILE_RB_PAYOUT,M1..M4,"[1.02,1.02,1.00,0.96]",gain,Core/Src/task.c,rolled-back,V13 RB-M4-HOLD payout scale removed from current V12 code
+threshold,EDGE_PATROL_PROFILE_LB,M1..M4,"[1.00,1.00,1.00,1.00]",gain,Core/Src/task.c,rolled-back,V13 neutral profile removed from current V12 code
+firmware,v12_boot_marker,value,Q2-CAL-JOG-v12-ZERO-RECOVER,version,Core/Src/main.c,active,current boot marker after rollback to V12 baseline
+firmware,v13_boot_marker,value,Q2-CAL-JOG-v13-CORNER-TENSION,version,Core/Src/main.c,rolled-back,per-corner tension profile experiment removed from current V12 code
+target_mask,v12_run8,confirmed,0x0D,mask,serial v12 summary,confirmed,LT RB LB visually confirmed
+target_mask,v12_run8,unconfirmed,0x02,mask,serial v12 summary,confirmed,RT unconfirmed
+calibration,v12_LT_n1,soft_x,-17.79,cm,serial v12 PATROL CAL TABLE,confirmed,n=1
+calibration,v12_LT_n1,soft_y,16.10,cm,serial v12 PATROL CAL TABLE,confirmed,n=1
+calibration,v12_LT_n1,err_x,0.10,cm,serial v12 PATROL CAL TABLE,confirmed,n=1
+calibration,v12_LT_n1,err_y,-0.10,cm,serial v12 PATROL CAL TABLE,confirmed,n=1
+calibration,v12_LT_n1,tilt_x,-0.05,tilt,serial v12 PATROL CAL TABLE,confirmed,n=1
+calibration,v12_LT_n1,tilt_y,-0.07,tilt,serial v12 PATROL CAL TABLE,confirmed,n=1
+calibration,v12_LT_n1,enc,"[6446,-7705,24585,20106]",0.1deg,serial v12 PATROL CAL TABLE,confirmed,n=1
+calibration,v12_RT_n0,count,0,samples,serial v12 PATROL CAL TABLE,confirmed,vision saw center circle not RT target
+calibration,v12_RB_n1,soft_x,17.70,cm,serial v12 PATROL CAL TABLE,confirmed,n=1
+calibration,v12_RB_n1,soft_y,-16.47,cm,serial v12 PATROL CAL TABLE,confirmed,n=1
+calibration,v12_RB_n1,err_x,0.00,cm,serial v12 PATROL CAL TABLE,confirmed,n=1
+calibration,v12_RB_n1,err_y,-0.20,cm,serial v12 PATROL CAL TABLE,confirmed,n=1
+calibration,v12_RB_n1,tilt_x,0.21,tilt,serial v12 PATROL CAL TABLE,confirmed,n=1
+calibration,v12_RB_n1,tilt_y,-0.27,tilt,serial v12 PATROL CAL TABLE,confirmed,n=1
+calibration,v12_RB_n1,enc,"[7533,-6829,-20256,-24793]",0.1deg,serial v12 PATROL CAL TABLE,confirmed,n=1
+calibration,v12_LB_n1,soft_x,-15.42,cm,serial v12 PATROL CAL TABLE,confirmed,n=1
+calibration,v12_LB_n1,soft_y,-13.82,cm,serial v12 PATROL CAL TABLE,confirmed,n=1
+calibration,v12_LB_n1,err_x,-0.40,cm,serial v12 PATROL CAL TABLE,confirmed,n=1
+calibration,v12_LB_n1,err_y,-0.60,cm,serial v12 PATROL CAL TABLE,confirmed,n=1
+calibration,v12_LB_n1,tilt_x,0.08,tilt,serial v12 PATROL CAL TABLE,confirmed,n=1
+calibration,v12_LB_n1,tilt_y,0.02,tilt,serial v12 PATROL CAL TABLE,confirmed,n=1
+calibration,v12_LB_n1,enc,"[-17904,-21157,6022,-4732]",0.1deg,serial v12 PATROL CAL TABLE,confirmed,n=1
+failure,v12_rt_unconfirmed,result,seen_other,status,serial v12 summary,confirmed,RT repeatedly saw circle=(0.0 0.0) and was not calibrated
+failure,v12_lb_m4_encoder_read,result,TIMEOUT,status,serial v12 summary,confirmed,LB nearby M4 encoder read timeout after movement not buffered write failure
+field_observation,v12_LT,tension,loose,status,user observation,confirmed,LT all four cables loose and gondola sagging
+field_observation,v12_RT,tension,tight_suspected,status,user observation,needs-confirm,RT suspected tight but serial issue was target unconfirmed
+field_observation,v12_RB,tension,mixed,status,user observation,confirmed,RB M1 M2 slightly tight and M4 loose while return path suitable
+field_observation,v12_LB,tension,neutral,status,user observation,confirmed,LB cable length suitable and stable
+firmware,v14_boot_marker,value,Q2-CAL-JOG-v14-SAFE-RETRY,version,Core/Src/main.c,rolled-back,V14 safe retry removed after user requested V12 rollback
+threshold,EDGE_PATROL_MOVE_RECOVERY_MAX,value,1,attempts,Core/Src/task.c,rolled-back,V14 automatic patrol movement recovery removed from current V12 code
+threshold,EDGE_PATROL_MOVE_RECOVERY_WAIT_MS,value,800,ms,Core/Src/task.c,rolled-back,V14 patrol movement recovery wait removed from current V12 code
+firmware,v15_boot_marker,value,Q2-CAL-JOG-v15-AUTO-RELAX,version,Core/Src/main.c,rolled-back,run10 showed LT degraded under retry-relax recovery loop
+threshold,EDGE_PATROL_RETRY_RELAX_ENABLE,value,0,boolean,Core/Src/task.c,removed,V15 temporary retry-relax removed from current code
+failure,v13_rt_abort,waypoint,11,count,serial v13,confirmed,RT failed at step 11 of 28
+failure,v13_rt_abort,segment,2,count,serial v13,confirmed,RT segment 2 of 6
+failure,v13_rt_abort,motor,4,index,serial v13,confirmed,M4 buffered write timeout
+failure,v13_rt_abort,result,TIMEOUT,status,serial v13,confirmed,func=0x10 rx_len=0 expect=8 elapsed=402ms trigger_attempted=0
+failure,v13_rt_abort,from_x,12.67,cm,serial v13,confirmed,soft before failed segment
+failure,v13_rt_abort,from_y,12.92,cm,serial v13,confirmed,soft before failed segment
+failure,v13_rt_abort,to_x,13.33,cm,serial v13,confirmed,failed segment target
+failure,v13_rt_abort,to_y,13.83,cm,serial v13,confirmed,failed segment target
+failure,v13_rt_abort,laser,"(15.80,11.10)",cm,serial v13,confirmed,laser still not at RT circle when communication failed
+failure,v13_rt_abort,circle,"(0.00,0.00)",cm,serial v13,confirmed,vision still saw center circle
+calibration,v13_LT_n1,soft_x,-18.16,cm,serial v13 PATROL CAL,confirmed,n=1
+calibration,v13_LT_n1,soft_y,15.08,cm,serial v13 PATROL CAL,confirmed,n=1
+calibration,v13_LT_n1,err_x,0.20,cm,serial v13 PATROL CAL,confirmed,n=1
+calibration,v13_LT_n1,err_y,-0.50,cm,serial v13 PATROL CAL,confirmed,n=1
+calibration,v13_LT_n1,enc,"[5180,-8083,23398,20302]",0.1deg,serial v13 PATROL CAL,confirmed,n=1

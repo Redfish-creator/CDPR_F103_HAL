@@ -385,6 +385,8 @@ int main(void)
   MX_USART3_UART_Init();
   MX_TIM2_Init();
   /* USER CODE BEGIN 2 */
+  setvbuf(stdout, NULL, _IONBF, 0);
+  printf("\r\n[BOOT] CDPR backup-current app start Q2-CAL-JOG-v12-ZERO-RECOVER\r\n");
   vision_init();      /* 要用视觉才加; 需 USART2+DMA 已初始化 */
 #if APP_MOTOR_DEBUG_TEST
   MotorTest_Init();

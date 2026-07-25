@@ -1,16 +1,23 @@
 /* ============================================================
  *  motor.c — ZDT X42S 闭环步进电机 Modbus-RTU 驱动
  *  总线: USART3 + RS485(自动方向)
- *  收发: HAL_UART_AbortReceive 复位接收 + 按字节收帧
+ *  收发: DMA 连续接收完整 Modbus 应答, 必要时覆盖本机回显
  * ============================================================ */
 #include "motor.h"
+#include <stdio.h>
 #include <string.h>
 
 extern UART_HandleTypeDef huart3;          /* CubeMX 生成的 USART3 句柄 */
 
-#define MB_TX_TIMEOUT   50                 /* 发送超时 ms */
-#define MB_RX_TIMEOUT   120                /* 等应答超时 ms */
-#define MB_BUF_SIZE     64
+#define MB_TX_TIMEOUT             50U      /* 发送超时 ms */
+#define MB_RX_TIMEOUT             400U     /* 完整应答窗口 ms */
+#define MB_RX_INTERBYTE_TIMEOUT   20U      /* 部分帧停止增长后的超时 ms */
+#define MB_BUF_SIZE                64U
+#define MB_DMA_RX_CAPACITY        64U      /* DMA1_Channel3, USART3_RX */
+
+static motor_transaction_diag_t s_last_diag;
+static uint8_t s_dma_rx_buf[MB_DMA_RX_CAPACITY];
+static uint8_t s_dma_rx_active;
 
 /* ---------- Modbus CRC16 (低字节在前) ---------- */
 uint16_t modbus_crc16(const uint8_t *data, uint16_t len)
@@ -34,8 +41,414 @@ const char *motor_result_str(mb_result_t r)
         case MB_ERR_TIMEOUT: return "TIMEOUT";
         case MB_ERR_CRC:     return "CRC_BAD";
         case MB_ERR_REJECT:  return "REJECTED";
+        case MB_ERR_FRAME:   return "FRAME_BAD";
+        case MB_ERR_BUSY:    return "UART_BUSY";
         default:             return "?";
     }
+}
+
+void motor_get_last_transaction_diag(motor_transaction_diag_t *diag)
+{
+    if (diag != NULL) {
+        *diag = s_last_diag;
+    }
+}
+
+static mb_result_t motor_diag_finish(mb_result_t result, uint32_t start_ms)
+{
+    s_last_diag.result = result;
+    s_last_diag.elapsed_ms = HAL_GetTick() - start_ms;
+    return result;
+}
+
+static void motor_diag_reset(const uint8_t *tx,
+                             uint16_t tx_len,
+                             uint16_t expected_rx_len)
+{
+    memset(&s_last_diag, 0, sizeof(s_last_diag));
+    if (tx != NULL && tx_len != 0U) {
+        s_last_diag.addr = tx[0];
+        s_last_diag.function = (tx_len > 1U) ? tx[1] : 0U;
+        s_last_diag.tx_len = (tx_len > MOTOR_DIAG_FRAME_MAX) ?
+                             MOTOR_DIAG_FRAME_MAX : tx_len;
+        memcpy(s_last_diag.tx, tx, s_last_diag.tx_len);
+    }
+    s_last_diag.expected_rx_len = expected_rx_len;
+    s_last_diag.tx_ok = 0U;
+}
+
+/*
+ * USART3 is used as a foreground-controlled, half-duplex Modbus port in this
+ * application; response bytes are collected by a short DMA window.
+ * CubeMX still enables the NVIC line, but no USART3 interrupt reception is
+ * started anywhere.  Leaving a stale/pending IRQ enabled lets the HAL handler
+ * consume a byte (or terminate an old receive) while the foreground code is
+ * polling the same DR register.  Disable that unused path once, at the same
+ * time as the receive cleanup.
+ */
+static void motor_uart_disable_unused_irq(void)
+{
+    HAL_NVIC_DisableIRQ(USART3_IRQn);
+    HAL_NVIC_ClearPendingIRQ(USART3_IRQn);
+}
+
+static void motor_uart_clear_status(void)
+{
+    /*
+     * On STM32F1 PE/FE/NE/ORE/IDLE are cleared by the SR-then-DR sequence.
+     * Do this once rather than calling the HAL macros repeatedly: each macro
+     * reads DR and could eat a newly arrived byte.
+     */
+    volatile uint32_t sr = READ_REG(huart3.Instance->SR);
+    volatile uint32_t dr = READ_REG(huart3.Instance->DR);
+    (void)sr;
+    (void)dr;
+}
+
+static uint32_t motor_uart_error_from_sr(uint32_t sr)
+{
+    uint32_t error = HAL_UART_ERROR_NONE;
+
+    /*
+     * USART_SR_FE and USART_SR_NE do not use the same bit values as the HAL
+     * error enum, so translate each flag explicitly instead of copying SR.
+     */
+    if ((sr & USART_SR_PE) != 0U)  error |= HAL_UART_ERROR_PE;
+    if ((sr & USART_SR_NE) != 0U)  error |= HAL_UART_ERROR_NE;
+    if ((sr & USART_SR_FE) != 0U)  error |= HAL_UART_ERROR_FE;
+    if ((sr & USART_SR_ORE) != 0U) error |= HAL_UART_ERROR_ORE;
+    return error;
+}
+
+static void motor_uart_dma_stop(void)
+{
+    /*
+     * DMA1 Channel 3 is the fixed STM32F103 USART3_RX mapping.  It is not
+     * used by CubeMX in this project (USART2_RX uses Channel 6).
+     */
+    CLEAR_BIT(huart3.Instance->CR3, USART_CR3_DMAR);
+    CLEAR_BIT(DMA1_Channel3->CCR, DMA_CCR_EN);
+    DMA1->IFCR = DMA_IFCR_CGIF3 | DMA_IFCR_CTCIF3 |
+                 DMA_IFCR_CHTIF3 | DMA_IFCR_CTEIF3;
+    s_dma_rx_active = 0U;
+}
+
+static void motor_uart_dma_start(void)
+{
+    __HAL_RCC_DMA1_CLK_ENABLE();
+    motor_uart_dma_stop();
+    memset(s_dma_rx_buf, 0, sizeof(s_dma_rx_buf));
+
+    DMA1_Channel3->CPAR = (uint32_t)(uintptr_t)&huart3.Instance->DR;
+    DMA1_Channel3->CMAR = (uint32_t)(uintptr_t)s_dma_rx_buf;
+    DMA1_Channel3->CNDTR = MB_DMA_RX_CAPACITY;
+    /*
+     * Peripheral-to-memory, byte-to-byte, memory increment, very high
+     * priority.  No DMA interrupt is enabled; the foreground waits for a
+     * complete Modbus candidate and the channel itself prevents ORE.
+     */
+    DMA1_Channel3->CCR = DMA_CCR_MINC | DMA_CCR_PL;
+    SET_BIT(DMA1_Channel3->CCR, DMA_CCR_EN);
+    SET_BIT(huart3.Instance->CR3, USART_CR3_DMAR);
+    SET_BIT(huart3.Instance->CR1, USART_CR1_RE);
+    s_dma_rx_active = 1U;
+}
+
+static uint16_t motor_uart_dma_count(void)
+{
+    uint16_t remaining = (uint16_t)READ_REG(DMA1_Channel3->CNDTR);
+    /*
+     * CNDTR is decremented after the peripheral byte has been moved.  Keep
+     * subsequent CPU reads of s_dma_rx_buf behind that hardware observation.
+     */
+    __DMB();
+    if (remaining > MB_DMA_RX_CAPACITY) {
+        remaining = MB_DMA_RX_CAPACITY;
+    }
+    return (uint16_t)(MB_DMA_RX_CAPACITY - remaining);
+}
+
+static void motor_uart_flush_rx(void)
+{
+    (void)HAL_UART_AbortReceive(&huart3);
+    motor_uart_disable_unused_irq();
+
+    motor_uart_dma_stop();
+    __HAL_UART_DISABLE_IT(&huart3, UART_IT_RXNE);
+    __HAL_UART_DISABLE_IT(&huart3, UART_IT_PE);
+    __HAL_UART_DISABLE_IT(&huart3, UART_IT_ERR);
+
+    /*
+     * Leave the receiver disabled after cleanup.  mb_transaction() will
+     * either pre-arm RX DMA before TX for echo-safe commands, or keep RE low
+     * until the reply phase for 0x06 commands where local echo is ambiguous.
+     */
+    CLEAR_BIT(huart3.Instance->CR1, USART_CR1_RE);
+
+    /*
+     * A failed transaction can leave a late response in the UART peripheral.
+     * Drain a bounded number of bytes before the next request so that a stale
+     * CRC cannot be mistaken for the next motor's response.
+     */
+    for (uint8_t i = 0U; i < MOTOR_DIAG_FRAME_MAX; i++) {
+        if (__HAL_UART_GET_FLAG(&huart3, UART_FLAG_RXNE) == RESET) {
+            break;
+        }
+        (void)READ_REG(huart3.Instance->DR);
+    }
+    motor_uart_clear_status();
+
+    huart3.ErrorCode = HAL_UART_ERROR_NONE;
+    huart3.RxXferCount = 0U;
+    huart3.RxXferSize = 0U;
+    huart3.RxState = HAL_UART_STATE_READY;
+    huart3.ReceptionType = HAL_UART_RECEPTION_STANDARD;
+}
+
+static void motor_uart_enable_rx(void)
+{
+    SET_BIT(huart3.Instance->CR1, USART_CR1_RE);
+    /*
+     * RE was low during TX.  Preserve a clean RXNE byte because a fast
+     * driver may already have started its reply by the time TC is observed;
+     * only an error status proves that the latched byte stream is unusable.
+     */
+    if ((__HAL_UART_GET_FLAG(&huart3, UART_FLAG_ORE) != RESET) ||
+        (__HAL_UART_GET_FLAG(&huart3, UART_FLAG_FE) != RESET) ||
+        (__HAL_UART_GET_FLAG(&huart3, UART_FLAG_NE) != RESET) ||
+        (__HAL_UART_GET_FLAG(&huart3, UART_FLAG_PE) != RESET)) {
+        motor_uart_clear_status();
+    }
+    huart3.ErrorCode = HAL_UART_ERROR_NONE;
+    huart3.RxState = HAL_UART_STATE_READY;
+}
+
+static uint8_t motor_frame_crc_ok(const uint8_t *frame, uint16_t len)
+{
+    if (frame == NULL || len < 5U) {
+        return 0U;
+    }
+
+    uint16_t calc = modbus_crc16(frame, (uint16_t)(len - 2U));
+    uint16_t recv = (uint16_t)frame[len - 2U] |
+                    ((uint16_t)frame[len - 1U] << 8);
+    return (calc == recv) ? 1U : 0U;
+}
+
+/*
+ * Find a complete valid response in the DMA stream.  This also tolerates a
+ * byte or a local echo left by an automatic RS485 adapter: the request echo
+ * does not have the response length/CRC and is skipped instead of shifting
+ * the next motor transaction.
+ */
+static uint8_t motor_find_response_frame(const uint8_t *stream,
+                                          uint16_t stream_len,
+                                          uint8_t address,
+                                          uint8_t function,
+                                          uint16_t expected_len,
+                                          uint16_t *offset,
+                                          uint16_t *frame_len)
+{
+    if (stream == NULL || expected_len < 5U) {
+        return 0U;
+    }
+
+    for (uint16_t i = 0U; i + 2U <= stream_len; i++) {
+        if (stream[i] != address) {
+            continue;
+        }
+
+        uint8_t response_function = stream[i + 1U];
+        if (response_function == (uint8_t)(function | 0x80U)) {
+            if ((uint16_t)(stream_len - i) >= 5U &&
+                motor_frame_crc_ok(&stream[i], 5U)) {
+                if (offset != NULL) *offset = i;
+                if (frame_len != NULL) *frame_len = 5U;
+                return 1U;
+            }
+        } else if (response_function == function &&
+                   (uint16_t)(stream_len - i) >= expected_len &&
+                   motor_frame_crc_ok(&stream[i], expected_len)) {
+            if (offset != NULL) *offset = i;
+            if (frame_len != NULL) *frame_len = expected_len;
+            return 1U;
+        }
+    }
+    return 0U;
+}
+
+/*
+ * Receive one complete Modbus response with DMA1 Channel 3.  The old
+ * one-byte HAL polling path could be pre-empted by the MaixCAM/FreeRTOS
+ * interrupts and overrun the STM32F1 one-byte DR (the field log showed
+ * uart_error=0x00000008).  DMA keeps every byte; the foreground only scans
+ * the accumulated stream for an address/function/CRC-valid response.  When
+ * DMA was armed before TX, this function keeps the captured echo/prefix and
+ * searches through it instead of restarting the receiver.
+ */
+static HAL_StatusTypeDef motor_uart_receive_frame(uint8_t *data,
+                                                   uint16_t expected_len,
+                                                   uint8_t address,
+                                                   uint8_t function,
+                                                   uint16_t *received_len)
+{
+    uint32_t first_tick = HAL_GetTick();
+    uint32_t last_data_tick = first_tick;
+    uint16_t observed = 0U;
+    uint16_t offset = 0U;
+    uint16_t frame_len = 0U;
+    uint32_t error_flags_seen = 0U;
+
+    if (data == NULL || expected_len == 0U ||
+        expected_len > MB_DMA_RX_CAPACITY) {
+        if (received_len != NULL) *received_len = 0U;
+        return HAL_ERROR;
+    }
+
+    memset(data, 0, expected_len);
+    huart3.ErrorCode = HAL_UART_ERROR_NONE;
+    huart3.RxXferSize = expected_len;
+    huart3.RxXferCount = expected_len;
+    huart3.RxState = HAL_UART_STATE_BUSY_RX;
+
+    if (s_dma_rx_active == 0U) {
+        /*
+         * For commands where pre-TX receive is not safe, RE was held low
+         * during TX.  Drain only stale status/data before arming DMA, then
+         * enable DMA and RE in that order so the first reply byte cannot be
+         * missed.
+         */
+        CLEAR_BIT(huart3.Instance->CR1, USART_CR1_RE);
+        while (__HAL_UART_GET_FLAG(&huart3, UART_FLAG_RXNE) != RESET) {
+            (void)READ_REG(huart3.Instance->DR);
+        }
+        motor_uart_clear_status();
+        motor_uart_dma_start();
+    }
+
+    while ((HAL_GetTick() - first_tick) < MB_RX_TIMEOUT) {
+        uint32_t now = HAL_GetTick();
+        uint16_t count = motor_uart_dma_count();
+
+        if (count > observed) {
+            observed = count;
+            last_data_tick = now;
+            huart3.RxXferCount = (uint16_t)
+                                 ((expected_len > observed) ?
+                                  (expected_len - observed) : 0U);
+        }
+
+        if (motor_find_response_frame(s_dma_rx_buf, observed,
+                                      address, function, expected_len,
+                                      &offset, &frame_len) != 0U) {
+            if (frame_len > expected_len) {
+                frame_len = expected_len;
+            }
+            error_flags_seen |=
+                motor_uart_error_from_sr(READ_REG(huart3.Instance->SR));
+            memcpy(data, &s_dma_rx_buf[offset], frame_len);
+            motor_uart_dma_stop();
+            huart3.RxXferCount = 0U;
+            huart3.RxState = HAL_UART_STATE_READY;
+            if (received_len != NULL) *received_len = frame_len;
+            /*
+             * A valid CRC-framed response is trustworthy even if an
+             * unrelated echo/noise byte raised ORE in the same DMA window.
+             * Keep the flag in diagnostics, but do not duplicate motion.
+             */
+            huart3.ErrorCode = error_flags_seen;
+            return HAL_OK;
+        }
+
+        error_flags_seen |=
+            motor_uart_error_from_sr(READ_REG(huart3.Instance->SR));
+
+        if (observed == 0U) {
+            continue;
+        }
+        if ((now - last_data_tick) >= MB_RX_INTERBYTE_TIMEOUT) {
+            break;
+        }
+        if (observed >= MB_DMA_RX_CAPACITY) {
+            break;
+        }
+    }
+
+    /*
+     * Preserve the raw prefix for the existing diagnostic print, then stop
+     * DMA/RE before clearing SR/DR.  A partial or CRC-invalid relative
+     * response remains a hard failure; no duplicate buffered command is sent.
+     */
+    uint16_t raw_count = motor_uart_dma_count();
+    if (raw_count > MB_DMA_RX_CAPACITY) raw_count = MB_DMA_RX_CAPACITY;
+    motor_uart_dma_stop();
+    CLEAR_BIT(huart3.Instance->CR1, USART_CR1_RE);
+    if (raw_count > expected_len) raw_count = expected_len;
+    if (raw_count != 0U) memcpy(data, s_dma_rx_buf, raw_count);
+    huart3.ErrorCode = error_flags_seen;
+    if (error_flags_seen != 0U) {
+        motor_uart_clear_status();
+    }
+    huart3.RxXferCount = (uint16_t)(expected_len - raw_count);
+    huart3.RxState = HAL_UART_STATE_READY;
+    if (received_len != NULL) *received_len = raw_count;
+    return (error_flags_seen != 0U) ? HAL_ERROR : HAL_TIMEOUT;
+}
+
+static void motor_diag_record_tx_only(const uint8_t *tx,
+                                      uint16_t tx_len,
+                                      mb_result_t result,
+                                      uint32_t elapsed_ms)
+{
+    motor_diag_reset(tx, tx_len, 0U);
+    s_last_diag.tx_ok = (result == MB_OK) ? 1U : 0U;
+    s_last_diag.result = result;
+    s_last_diag.elapsed_ms = elapsed_ms;
+}
+
+static void motor_print_hex(const char *label,
+                            const uint8_t *data,
+                            uint16_t len)
+{
+    printf("%s", (label != NULL) ? label : "");
+    for (uint16_t i = 0U; i < len; i++) {
+        printf("%02X", (unsigned int)data[i]);
+        if ((i + 1U) < len) {
+            putchar(' ');
+        }
+    }
+}
+
+void motor_print_last_transaction_diag(const char *prefix)
+{
+    const char *p = (prefix != NULL) ? prefix : "motor";
+
+    printf("%s diag result=%s addr=%u func=0x%02X tx_len=%u rx_len=%u expect=%u elapsed=%lums",
+           p,
+           motor_result_str(s_last_diag.result),
+           (unsigned int)s_last_diag.addr,
+           (unsigned int)s_last_diag.function,
+           (unsigned int)s_last_diag.tx_len,
+           (unsigned int)s_last_diag.rx_len,
+           (unsigned int)s_last_diag.expected_rx_len,
+           (unsigned long)s_last_diag.elapsed_ms);
+    if (s_last_diag.exception_code != 0U) {
+        printf(" exception=0x%02X", (unsigned int)s_last_diag.exception_code);
+    }
+    if (s_last_diag.crc_calc != 0U || s_last_diag.crc_recv != 0U) {
+        printf(" crc_calc=0x%04X crc_recv=0x%04X",
+               (unsigned int)s_last_diag.crc_calc,
+               (unsigned int)s_last_diag.crc_recv);
+    }
+    if (s_last_diag.uart_error != HAL_UART_ERROR_NONE) {
+        printf(" uart_error=0x%08lX",
+               (unsigned long)s_last_diag.uart_error);
+    }
+    printf("\r\n");
+    motor_print_hex("  tx=", s_last_diag.tx, s_last_diag.tx_len);
+    printf("\r\n");
+    motor_print_hex("  rx=", s_last_diag.rx, s_last_diag.rx_len);
+    printf("\r\n");
 }
 
 /* 实测卷线方向:
@@ -55,36 +468,131 @@ static mb_result_t mb_transaction(uint8_t *req, uint16_t req_payload_len,
                                   uint8_t *rsp, uint16_t rsp_len)
 {
     uint8_t tx[MB_BUF_SIZE];
+    uint32_t start_ms = HAL_GetTick();
+
+    if (req == NULL || rsp == NULL ||
+        req_payload_len + 2U > MB_BUF_SIZE ||
+        rsp_len > MOTOR_DIAG_FRAME_MAX) {
+        motor_diag_reset(req, req_payload_len, rsp_len);
+        return motor_diag_finish(MB_ERR_FRAME, start_ms);
+    }
+
     memcpy(tx, req, req_payload_len);
     uint16_t crc = modbus_crc16(tx, req_payload_len);
     tx[req_payload_len]   = (uint8_t)(crc & 0xFF);
     tx[req_payload_len+1] = (uint8_t)(crc >> 8);
     uint16_t tx_total = req_payload_len + 2;
 
-    HAL_UART_AbortReceive(&huart3);        /* 关键: 复位接收, 清残留/错误标志 */
+    motor_diag_reset(tx, tx_total, rsp_len);
+    motor_uart_flush_rx();
 
-    if (HAL_UART_Transmit(&huart3, tx, tx_total, MB_TX_TIMEOUT) != HAL_OK)
-        return MB_ERR_TX;
+    /*
+     * Arm RX before TX for reads and 0x10 writes.  Automatic-direction
+     * RS485 adapters can let a fast driver reply immediately after TC; if
+     * DMA is started only after HAL_UART_Transmit() returns, field logs can
+     * show rx_len=0 even though the driver answered.  Do not pre-arm 0x06:
+     * its request echo is byte-for-byte identical to a normal response.
+     */
+    uint8_t prearm_rx = (req[1] != MB_FUNC_WRITE1) ? 1U : 0U;
+    if (prearm_rx != 0U) {
+        motor_uart_dma_start();
+    }
 
-    /* 按字节收满 rsp_len, 或超时 */
-    uint16_t cnt = 0;
-    uint32_t t0  = HAL_GetTick();
-    while ((HAL_GetTick() - t0) < MB_RX_TIMEOUT && cnt < rsp_len) {
-        uint8_t b;
-        if (HAL_UART_Receive(&huart3, &b, 1, 5) == HAL_OK) {
-            rsp[cnt++] = b;
-            if (cnt >= 2 && (rsp[1] & 0x80) && cnt >= 5) break;   /* 异常帧 5 字节 */
+    {
+        HAL_StatusTypeDef tx_status =
+            HAL_UART_Transmit(&huart3, tx, tx_total, MB_TX_TIMEOUT);
+        if (tx_status != HAL_OK) {
+            /*
+             * HAL_BUSY is returned before HAL starts this blocking transfer.
+             * HAL_TIMEOUT/HAL_ERROR may occur after a partial frame and are
+             * therefore ambiguous for a relative buffered command.
+             */
+            motor_uart_dma_stop();
+            motor_uart_enable_rx();
+            return motor_diag_finish((tx_status == HAL_BUSY) ?
+                                     MB_ERR_BUSY : MB_ERR_TX, start_ms);
         }
     }
-    if (cnt < rsp_len) {
-        if (cnt >= 2 && (rsp[1] & 0x80)) return MB_ERR_REJECT;
-        return MB_ERR_TIMEOUT;
+    s_last_diag.tx_ok = 1U;
+
+    /*
+     * Receive the response with one DMA-backed transaction.  A normal write
+     * response is 8 bytes; an exception frame is still accepted below after
+     * this call returns with 5 bytes.  The receiver records
+     * partial bytes and STM32F1 UART error flags without allowing a stale HAL
+     * receive state to carry into the next motor.
+     */
+    memset(rsp, 0, rsp_len);
+    {
+        uint16_t cnt = 0U;
+        HAL_StatusTypeDef rx_status =
+            motor_uart_receive_frame(rsp, rsp_len, req[0], req[1], &cnt);
+        if (cnt > MOTOR_DIAG_FRAME_MAX) {
+            cnt = MOTOR_DIAG_FRAME_MAX;
+        }
+        s_last_diag.rx_len = cnt;
+        if (cnt != 0U) {
+            memcpy(s_last_diag.rx, rsp, cnt);
+        }
+        s_last_diag.uart_error = huart3.ErrorCode;
+
+        if (rx_status != HAL_OK && cnt < rsp_len &&
+            !(cnt >= 5U && (rsp[1] & 0x80U) != 0U)) {
+            return motor_diag_finish(MB_ERR_TIMEOUT, start_ms);
+        }
     }
-    if (rsp[1] & 0x80) return MB_ERR_REJECT;
-    uint16_t cc = modbus_crc16(rsp, rsp_len - 2);
-    uint16_t cr = (uint16_t)rsp[rsp_len-2] | ((uint16_t)rsp[rsp_len-1] << 8);
-    if (cc != cr) return MB_ERR_CRC;
-    return MB_OK;
+
+    uint16_t cnt = s_last_diag.rx_len;
+    if (cnt >= 1U && rsp[0] != req[0]) {
+        s_last_diag.response_complete = (cnt >= rsp_len) ? 1U : 0U;
+        return motor_diag_finish(MB_ERR_FRAME, start_ms);
+    }
+
+    if (cnt >= 2U && rsp[1] != (uint8_t)(req[1] | 0x80U) &&
+        rsp[1] != req[1]) {
+        s_last_diag.response_complete = (cnt >= rsp_len) ? 1U : 0U;
+        return motor_diag_finish(MB_ERR_FRAME, start_ms);
+    }
+
+    if (cnt >= 2U && (rsp[1] & 0x80U) != 0U) {
+        if (cnt < 5U) {
+            return motor_diag_finish(MB_ERR_TIMEOUT, start_ms);
+        }
+        s_last_diag.response_complete = 1U;
+        s_last_diag.exception_code = rsp[2];
+        s_last_diag.crc_calc = modbus_crc16(rsp, 3U);
+        s_last_diag.crc_recv = (uint16_t)rsp[3] |
+                               ((uint16_t)rsp[4] << 8);
+        if (s_last_diag.crc_calc != s_last_diag.crc_recv) {
+            return motor_diag_finish(MB_ERR_CRC, start_ms);
+        }
+        return motor_diag_finish(MB_ERR_REJECT, start_ms);
+    }
+
+    if (cnt < rsp_len) {
+        return motor_diag_finish(MB_ERR_TIMEOUT, start_ms);
+    }
+
+    s_last_diag.response_complete = 1U;
+    s_last_diag.crc_calc = modbus_crc16(rsp, rsp_len - 2U);
+    s_last_diag.crc_recv = (uint16_t)rsp[rsp_len - 2U] |
+                           ((uint16_t)rsp[rsp_len - 1U] << 8);
+    if (s_last_diag.crc_calc != s_last_diag.crc_recv) {
+        return motor_diag_finish(MB_ERR_CRC, start_ms);
+    }
+    if (req[1] == MB_FUNC_WRITEN || req[1] == MB_FUNC_WRITE1) {
+        if (rsp[2] != req[2] || rsp[3] != req[3] ||
+            rsp[4] != req[4] || rsp[5] != req[5]) {
+            return motor_diag_finish(MB_ERR_FRAME, start_ms);
+        }
+    } else if (req[1] == MB_FUNC_READ || req[1] == 0x04U) {
+        uint16_t qty = ((uint16_t)req[4] << 8) | req[5];
+        uint16_t byte_count = (uint16_t)(qty * 2U);
+        if (byte_count > 255U || rsp[2] != (uint8_t)byte_count) {
+            return motor_diag_finish(MB_ERR_FRAME, start_ms);
+        }
+    }
+    return motor_diag_finish(MB_OK, start_ms);
 }
 
 /* ============================================================
@@ -168,6 +676,7 @@ mb_result_t motor_run_speed(uint8_t addr, uint8_t dir,
 mb_result_t motor_sync_trigger(void)
 {
     uint8_t f[8];
+    uint32_t start_ms = HAL_GetTick();
     f[0] = 0x00;
     f[1] = MB_FUNC_WRITE1;
     f[2] = (uint8_t)(REG_SYNC >> 8);
@@ -176,9 +685,19 @@ mb_result_t motor_sync_trigger(void)
     uint16_t crc = modbus_crc16(f, 6);
     f[6] = (uint8_t)(crc & 0xFF);
     f[7] = (uint8_t)(crc >> 8);
-    HAL_UART_AbortReceive(&huart3);
-    if (HAL_UART_Transmit(&huart3, f, 8, MB_TX_TIMEOUT) != HAL_OK)
-        return MB_ERR_TX;
+    motor_uart_flush_rx();
+    HAL_StatusTypeDef tx_status =
+        HAL_UART_Transmit(&huart3, f, 8, MB_TX_TIMEOUT);
+    if (tx_status != HAL_OK) {
+        motor_uart_enable_rx();
+        mb_result_t result = (tx_status == HAL_BUSY) ?
+                             MB_ERR_BUSY : MB_ERR_TX;
+        motor_diag_record_tx_only(f, 8U, result,
+                                  HAL_GetTick() - start_ms);
+        return result;
+    }
+    motor_uart_enable_rx();
+    motor_diag_record_tx_only(f, 8U, MB_OK, HAL_GetTick() - start_ms);
     return MB_OK;
 }
 

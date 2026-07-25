@@ -1,0 +1,5 @@
+capture_date,run_id,event_order,event_type,direction,run_cm,soft_x_cm,soft_y_cm,limit_cm,motor,result,rx_len,elapsed_ms,laser_x_cm,laser_y_cm,circle_x_cm,circle_y_cm,err_x_cm,err_y_cm,tilt_x,tilt_y,notes
+2026-07-24,V8-JOG,1,HOME,NONE,待确认,0.00,0.00,20.0,ALL,OK,待确认,待确认,-0.10,0.10,待确认,待确认,待确认,待确认,待确认,待确认,"visual zero; tension normalize count=40 vmax=60; recenter=(-0.10,0.10) d=0.14 cm"
+2026-07-24,V8-JOG,2,JOG_CHAIN,UP,4.00,0.00,13.15,20.0,ALL,OK,0,待确认,0.90,2.60,1.50,-13.30,-0.60,15.90,-0.65,-1.00,"multiple operator-controlled UP groups completed without TIMEOUT; soft is integrated command coordinate"
+2026-07-24,V8-JOG,3,JOG_CHAIN,LEFT,4.00,-7.52,13.15,20.0,ALL,OK,0,待确认,0.60,2.50,-9.50,1.40,10.10,1.10,-1.00,0.04,"multiple operator-controlled LEFT groups completed without TIMEOUT"
+2026-07-24,V8-JOG,4,RETURN,NONE,待确认,0.00,0.00,20.0,ALL,OK,0,待确认,-0.30,0.20,待确认,待确认,待确认,待确认,待确认,待确认,"return start cur=[9688,2156,18499,15668] zero=[0,0,0,0]; final motor errors=[0,0,0,1]; visual fine zero followed"

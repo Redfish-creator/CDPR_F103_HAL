@@ -52,12 +52,36 @@ typedef enum {
     MB_ERR_TX,
     MB_ERR_TIMEOUT,
     MB_ERR_CRC,
-    MB_ERR_REJECT
+    MB_ERR_REJECT,
+    MB_ERR_FRAME,
+    MB_ERR_BUSY
 } mb_result_t;
+
+#define MOTOR_DIAG_FRAME_MAX 32U
+
+typedef struct {
+    uint8_t addr;
+    uint8_t function;
+    uint8_t exception_code;
+    uint8_t response_complete;
+    uint8_t tx_ok;
+    uint16_t tx_len;
+    uint16_t rx_len;
+    uint16_t expected_rx_len;
+    uint16_t crc_calc;
+    uint16_t crc_recv;
+    uint32_t elapsed_ms;
+    uint32_t uart_error;
+    mb_result_t result;
+    uint8_t tx[MOTOR_DIAG_FRAME_MAX];
+    uint8_t rx[MOTOR_DIAG_FRAME_MAX];
+} motor_transaction_diag_t;
 
 uint16_t       modbus_crc16(const uint8_t *data, uint16_t len);
 const char    *motor_result_str(mb_result_t r);
 uint8_t        motor_cable_direction(uint8_t addr, uint8_t cable_action);
+void           motor_get_last_transaction_diag(motor_transaction_diag_t *diag);
+void           motor_print_last_transaction_diag(const char *prefix);
 
 mb_result_t motor_enable(uint8_t addr, uint8_t on, uint8_t sync);
 mb_result_t motor_move_pos(uint8_t addr, uint8_t dir,

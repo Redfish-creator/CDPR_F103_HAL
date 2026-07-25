@@ -6,10 +6,20 @@
 #include "kinematics.h"
 #include <math.h>
 #include <stdio.h>
+#include <string.h>
 #include "vision.h"
 static float cur_x = 0.0f, cur_y = 0.0f;
 static float cur_L[4];
 static float home_L[4];      /* 中心(home)处绳长, 编码器在此清零 */
+static motion_segment_report_t s_last_segment_report;
+static uint32_t s_segment_sequence = 0U;
+
+void motion_get_last_segment_report(motion_segment_report_t *report)
+{
+    if (report != NULL) {
+        *report = s_last_segment_report;
+    }
+}
 
 static void motion_stop_all_now(void)
 {
@@ -27,6 +37,112 @@ static void motion_delay_service(uint32_t delay_ms)
         vision_task();
         HAL_Delay(5);
     }
+}
+
+#ifndef MOTION_BUFFER_RETRY_MAX
+#define MOTION_BUFFER_RETRY_MAX      3U
+#endif
+#ifndef MOTION_BUFFER_RETRY_DELAY_MS
+#define MOTION_BUFFER_RETRY_DELAY_MS 90U
+#endif
+#ifndef MOTION_PATROL_BALANCE_RADIUS_CM
+#define MOTION_PATROL_BALANCE_RADIUS_CM 8.0f
+#endif
+#ifndef MOTION_PATROL_DOM_PAYOUT_RATIO
+#define MOTION_PATROL_DOM_PAYOUT_RATIO 0.70f
+#endif
+#ifndef MOTION_PATROL_DOM_PAYOUT_GAIN
+#define MOTION_PATROL_DOM_PAYOUT_GAIN 1.00f
+#endif
+#ifndef MOTION_PATROL_SIDE_PAYOUT_GAIN
+#define MOTION_PATROL_SIDE_PAYOUT_GAIN 1.00f
+#endif
+#ifndef MOTION_PATROL_BALANCE_ENABLE
+/*
+ * The former 0.86/1.03 heuristic intentionally changed the geometric
+ * payout.  The RB log showed a 2.442762 cm cumulative M4 command deficit,
+ * and the cable has since been reported broken.  The old values remain in
+ * the handoff/evidence documents for offline comparison, but this
+ * unverified tension heuristic is not applied in field motion.
+ */
+#define MOTION_PATROL_BALANCE_ENABLE 0U
+#endif
+#ifndef MOTION_PATROL_BASE_VMAX
+#define MOTION_PATROL_BASE_VMAX 300U
+#endif
+/*
+ * Per-motor empirical scale hooks. Defaults are neutral so the existing
+ * field behavior is preserved; later calibration can change one motor
+ * without applying a blind global tension offset.
+ */
+#ifndef MOTION_PATROL_M1_PAYOUT_SCALE
+#define MOTION_PATROL_M1_PAYOUT_SCALE 1.00f
+#endif
+#ifndef MOTION_PATROL_M2_PAYOUT_SCALE
+#define MOTION_PATROL_M2_PAYOUT_SCALE 1.00f
+#endif
+#ifndef MOTION_PATROL_M3_PAYOUT_SCALE
+#define MOTION_PATROL_M3_PAYOUT_SCALE 1.00f
+#endif
+#ifndef MOTION_PATROL_M4_PAYOUT_SCALE
+#define MOTION_PATROL_M4_PAYOUT_SCALE 1.00f
+#endif
+
+static float motion_patrol_payout_scale(uint8_t index)
+{
+    switch (index) {
+    case 0U: return MOTION_PATROL_M1_PAYOUT_SCALE;
+    case 1U: return MOTION_PATROL_M2_PAYOUT_SCALE;
+    case 2U: return MOTION_PATROL_M3_PAYOUT_SCALE;
+    case 3U: return MOTION_PATROL_M4_PAYOUT_SCALE;
+    default: return 1.0f;
+    }
+}
+
+static mb_result_t motion_buffer_move_pos_retry(uint8_t id,
+                                                uint8_t dir,
+                                                uint16_t vmax,
+                                                uint32_t mag,
+                                                uint8_t mode,
+                                                const char *tag)
+{
+    mb_result_t r = MB_ERR_TIMEOUT;
+
+    for (uint8_t attempt = 0U; attempt < MOTION_BUFFER_RETRY_MAX; attempt++) {
+        r = motor_move_pos(id, dir, vmax, mag, mode, MB_SYNC_BUFFER);
+        if (r == MB_OK) {
+            if (attempt != 0U && tag != NULL && tag[0] != '\0') {
+                printf("  %s buf m%d retry ok attempt=%u\r\n",
+                       tag, (int)id, (unsigned int)(attempt + 1U));
+            }
+            return MB_OK;
+        }
+
+        if (tag != NULL && tag[0] != '\0') {
+            printf("  %s buf m%d attempt=%u %s\r\n",
+                   tag, (int)id,
+                   (unsigned int)(attempt + 1U),
+                   motor_result_str(r));
+        }
+
+        /*
+         * A relative buffered write may already have been accepted when its
+         * response is lost or corrupted.  Re-sending CRC/TIMEOUT/REJECT
+         * blindly can queue the same motion twice. HAL_BUSY is the only result
+         * known to occur before this blocking transfer starts; all other
+         * results are ambiguous and must abort this synchronized group.
+         */
+        if (r != MB_ERR_BUSY) {
+            motor_print_last_transaction_diag("  buffer failure");
+            break;
+        }
+        HAL_Delay(MOTION_BUFFER_RETRY_DELAY_MS);
+    }
+
+    if (r == MB_ERR_BUSY) {
+        motor_print_last_transaction_diag("  buffer uart busy");
+    }
+    return r;
 }
 
 void motion_init(void)
@@ -50,7 +166,17 @@ mb_result_t motion_enable_all(uint8_t on)
 mb_result_t motion_set_home(void)
 {
     for (uint8_t id = 1; id <= 4; id++) {
-        mb_result_t r = motor_zero_position(id);
+        mb_result_t r = MB_ERR_TIMEOUT;
+
+        for (uint8_t attempt = 0U; attempt < 3U; attempt++) {
+            r = motor_zero_position(id);
+            if (r == MB_OK) {
+                break;
+            }
+            printf("  m%d zero retry %u: %s\r\n",
+                   id, (unsigned int)(attempt + 1U), motor_result_str(r));
+            HAL_Delay(40);
+        }
         if (r != MB_OK) {
             printf("  m%d zero FAIL: %s -> home NOT set\r\n", id, motor_result_str(r));
             return r;                       /* 某个清零失败 -> 不更新基准 */
@@ -78,11 +204,44 @@ void motion_get_pos(float *x, float *y) { *x = cur_x; *y = cur_y; }
 #ifndef MOTION_NOHOME_BASE_VMAX
 #define MOTION_NOHOME_BASE_VMAX   300    /* 视觉回中心/精修阶段速度更低: 30.0RPM */
 #endif
+#ifndef MOTION_NOHOME_INTER_CMD_DELAY_MS
+/*
+ * V11 proved the slower patrol/M2 pacing can pass many consecutive segments,
+ * but center visual re-zero still used the old 20 ms nohome gap and stopped
+ * at CENTER-RT on an M2 rx_len=0 TIMEOUT.  Match nohome visual-zero pacing to
+ * patrol pacing; this changes only bus timing, not commanded rope length.
+ */
+#define MOTION_NOHOME_INTER_CMD_DELAY_MS 160U
+#endif
 #ifndef MOTION_NOHOME_READBACK
 #define MOTION_NOHOME_READBACK    0
 #endif
 #ifndef MOTION_MANUAL_JOG_BASE_VMAX
 #define MOTION_MANUAL_JOG_BASE_VMAX 600
+#endif
+#ifndef MOTION_MANUAL_JOG_INTER_CMD_DELAY_MS
+#define MOTION_MANUAL_JOG_INTER_CMD_DELAY_MS 120U
+#endif
+#ifndef MOTION_PATROL_INTER_CMD_DELAY_MS
+/*
+ * Patrol sends four buffered writes automatically and then repeats the same
+ * transaction group after four encoder reads.  V8 field logs showed true
+ * no-reply timeouts (rx_len=0, 251 ms) on different motor addresses while
+ * operator-paced jog remained stable.  Keep jog pacing unchanged and give
+ * only the denser patrol sequence more drive/bus recovery time.
+ */
+#define MOTION_PATROL_INTER_CMD_DELAY_MS 160U
+#endif
+#ifndef MOTION_M2_PRE_CMD_EXTRA_DELAY_MS
+/*
+ * V10 field logs still show full-window no-reply timeouts on M2 0x10 buffered
+ * writes after the previous motor returned OK.  Give M2 a dedicated quiet
+ * window without making relative writes retryable after TIMEOUT/CRC/FRAME.
+ */
+#define MOTION_M2_PRE_CMD_EXTRA_DELAY_MS 120U
+#endif
+#ifndef MOTION_M2_POST_CMD_EXTRA_DELAY_MS
+#define MOTION_M2_POST_CMD_EXTRA_DELAY_MS 80U
 #endif
 #ifndef MOTION_JOG_SPEED_MIN_0P1RPM
 #define MOTION_JOG_SPEED_MIN_0P1RPM 60U
@@ -94,6 +253,20 @@ void motion_get_pos(float *x, float *y) { *x = cur_x; *y = cur_y; }
 #define MOTION_JOG_ACCEL 20U
 #endif
 #define MOTION_JOG_DIFF_DT_S 0.10f
+
+static void motion_pre_buffer_delay(uint8_t id)
+{
+    if (id == 2U && MOTION_M2_PRE_CMD_EXTRA_DELAY_MS != 0U) {
+        motion_delay_service(MOTION_M2_PRE_CMD_EXTRA_DELAY_MS);
+    }
+}
+
+static void motion_post_buffer_delay(uint8_t id)
+{
+    if (id == 2U && MOTION_M2_POST_CMD_EXTRA_DELAY_MS != 0U) {
+        motion_delay_service(MOTION_M2_POST_CMD_EXTRA_DELAY_MS);
+    }
+}
 
 mb_result_t motion_move_to(float x, float y)
 {
@@ -116,14 +289,17 @@ mb_result_t motion_move_to(float x, float y)
         float scale  = fabsf(dL[i]) / dmax; if (scale < MOTION_MIN_SCALE) scale = MOTION_MIN_SCALE;
         uint16_t vmax = (uint16_t)(MOTION_BASE_VMAX * scale); if (vmax < 1) vmax = 1;
 
-        mb_result_t rr = motor_move_pos(id, dir, vmax, mag, MOTION_MOVE_MODE, MB_SYNC_BUFFER);
+        motion_pre_buffer_delay(id);
+        mb_result_t rr = motion_buffer_move_pos_retry(id, dir, vmax, mag,
+                                                      MOTION_MOVE_MODE, "move");
         printf("  buf m%d: %s\r\n", id, motor_result_str(rr));
         if (rr != MB_OK) {
             printf("  buffer FAIL -> stop all, abort\r\n");
             motion_stop_all_now();
             return rr;
         }
-        HAL_Delay(20);
+        motion_delay_service(20U);
+        motion_post_buffer_delay(id);
     }
 
     /* 2) 广播触发, 判返回值 */
@@ -201,6 +377,17 @@ static mb_result_t motion_move_between_nohome_scaled_ex(float x_now, float y_now
                                                         uint32_t inter_cmd_delay_ms,
                                                         const char *tag)
 {
+    memset(&s_last_segment_report, 0, sizeof(s_last_segment_report));
+    s_last_segment_report.sequence = ++s_segment_sequence;
+    s_last_segment_report.x_now = x_now;
+    s_last_segment_report.y_now = y_now;
+    s_last_segment_report.x_next = x_next;
+    s_last_segment_report.y_next = y_next;
+    s_last_segment_report.trigger_result = MB_ERR_FRAME;
+    for (uint8_t i = 0U; i < 4U; i++) {
+        s_last_segment_report.motor_result[i] = MB_ERR_FRAME;
+    }
+
     uint8_t verbose = (tag != NULL && tag[0] != '\0') ? 1U : 0U;
     const char *move_tag = (verbose != 0U) ? tag : "nohome";
 
@@ -227,24 +414,58 @@ static mb_result_t motion_move_between_nohome_scaled_ex(float x_now, float y_now
 
     float dmax = 0.0f;
     float cmd_dmax = 0.0f;
+    float max_payout = 0.0f;
+    uint8_t patrol_balance = 0U;
+
+    if (MOTION_PATROL_BALANCE_ENABLE != 0U &&
+        tag != NULL && strcmp(tag, "patrol") == 0 &&
+        sqrtf(x_next * x_next + y_next * y_next) >= MOTION_PATROL_BALANCE_RADIUS_CM) {
+        patrol_balance = 1U;
+    }
+
     for (int i = 0; i < 4; i++) {
-        float gain;
         dL[i] = L1[i] - L0[i];
+        s_last_segment_report.dL[i] = dL[i];
         float a = fabsf(dL[i]);
         if (a > dmax) dmax = a;
-        gain = (dL[i] < 0.0f) ? takeup_gain : payout_gain;
+        if (dL[i] > max_payout) max_payout = dL[i];
+    }
+
+    for (int i = 0; i < 4; i++) {
+        float gain = (dL[i] < 0.0f) ? takeup_gain : payout_gain;
+        float a = fabsf(dL[i]);
+
+        if (patrol_balance != 0U && dL[i] > 0.0f && max_payout > 0.01f) {
+            if (dL[i] >= (max_payout * MOTION_PATROL_DOM_PAYOUT_RATIO)) {
+                gain *= MOTION_PATROL_DOM_PAYOUT_GAIN;
+            } else {
+                gain *= MOTION_PATROL_SIDE_PAYOUT_GAIN;
+            }
+            gain *= motion_patrol_payout_scale((uint8_t)i);
+        }
+
+        s_last_segment_report.gain[i] = gain;
         cmd_cm[i] = a * gain;
+        s_last_segment_report.cmd_cm[i] = cmd_cm[i];
         if (cmd_cm[i] > cmd_dmax) cmd_dmax = cmd_cm[i];
     }
+    s_last_segment_report.bal = patrol_balance;
 
     if (verbose != 0U) {
-        printf("%s move %.1f %.1f -> %.1f %.1f dL=%.2f %.2f %.2f %.2f gain(T=%.2f P=%.2f)\r\n",
+        printf("%s move %.1f %.1f -> %.1f %.1f dL=%.2f %.2f %.2f %.2f cmd=%.2f %.2f %.2f %.2f gain(T=%.2f P=%.2f) bal=%u\r\n",
                move_tag, x_now, y_now, x_next, y_next,
                dL[0], dL[1], dL[2], dL[3],
-               (double)takeup_gain, (double)payout_gain);
+               (double)cmd_cm[0], (double)cmd_cm[1],
+               (double)cmd_cm[2], (double)cmd_cm[3],
+               (double)takeup_gain, (double)payout_gain,
+               (unsigned int)patrol_balance);
     }
 
-    if (dmax < 0.01f || cmd_dmax < 0.01f) return MB_OK;
+    if (dmax < 0.01f || cmd_dmax < 0.01f) {
+        s_last_segment_report.completed = 1U;
+        s_last_segment_report.trigger_result = MB_OK;
+        return MB_OK;
+    }
 
 #if MOTION_NOHOME_READBACK
     for (uint8_t id = 1; id <= 4; id++) {
@@ -262,6 +483,8 @@ static mb_result_t motion_move_between_nohome_scaled_ex(float x_now, float y_now
         uint8_t dir = motor_cable_direction(id, (dL[i] < 0.0f) ?
                                              MOTOR_CABLE_TAKEUP : MOTOR_CABLE_PAYOUT);
         uint32_t mag = (uint32_t)(cmd_cm[i] * KIN_COUNTS_PER_CM + 0.5f);
+        s_last_segment_report.dir[i] = dir;
+        s_last_segment_report.mag[i] = mag;
 #if MOTION_NOHOME_READBACK
         cmd_dir[i] = dir;
         cmd_mag[i] = mag;
@@ -272,26 +495,35 @@ static mb_result_t motion_move_between_nohome_scaled_ex(float x_now, float y_now
 
         uint16_t vmax = (uint16_t)((float)base_vmax * scale);
         if (vmax < 1) vmax = 1;
+        s_last_segment_report.vmax[i] = vmax;
 
-        mb_result_t r = motor_move_pos(id, dir, vmax, mag,
-                                       MB_MODE_REL_CUR, MB_SYNC_BUFFER);
+        motion_pre_buffer_delay(id);
+        mb_result_t r = motion_buffer_move_pos_retry(id, dir, vmax, mag,
+                                                     MB_MODE_REL_CUR, "home");
+        s_last_segment_report.attempted_mask |= (uint8_t)(1U << i);
+        s_last_segment_report.motor_result[i] = r;
         if (verbose != 0U || r != MB_OK) {
             printf("  home buf m%d: %s\r\n", id, motor_result_str(r));
         }
         if (r != MB_OK) {
+            s_last_segment_report.failed_motor = id;
             printf("  home buffer FAIL -> stop all, abort\r\n");
             motion_stop_all_now();
             return r;
         }
 
-        HAL_Delay(inter_cmd_delay_ms);
+        motion_delay_service(inter_cmd_delay_ms);
+        motion_post_buffer_delay(id);
     }
 
     mb_result_t tr = motor_sync_trigger();
+    s_last_segment_report.trigger_attempted = 1U;
+    s_last_segment_report.trigger_result = tr;
     if (verbose != 0U || tr != MB_OK) {
         printf("  home trigger: %s\r\n", motor_result_str(tr));
     }
     if (tr != MB_OK) {
+        motor_print_last_transaction_diag("  trigger failure");
         motion_stop_all_now();
         return tr;
     }
@@ -300,6 +532,7 @@ static mb_result_t motion_move_between_nohome_scaled_ex(float x_now, float y_now
     uint32_t move_ms = (uint32_t)(((float)mag_max / ((float)base_vmax * 6.0f)) * 1000.0f) + wait_extra_ms;
     if (move_ms < wait_min_ms) move_ms = wait_min_ms;
     if (move_ms > wait_max_ms) move_ms = wait_max_ms;
+    s_last_segment_report.estimated_move_ms = move_ms;
 
     motion_delay_service(move_ms);
 
@@ -329,6 +562,7 @@ static mb_result_t motion_move_between_nohome_scaled_ex(float x_now, float y_now
     for (int i = 0; i < 4; i++) {
         cur_L[i] = L1[i];
     }
+    s_last_segment_report.completed = 1U;
 
     return MB_OK;
 }
@@ -342,7 +576,8 @@ static mb_result_t motion_move_between_nohome_scaled(float x_now, float y_now,
     return motion_move_between_nohome_scaled_ex(x_now, y_now, x_next, y_next,
                                                 takeup_gain, payout_gain,
                                                 MOTION_NOHOME_BASE_VMAX,
-                                                1000U, 500U, 8000U, 20U,
+                                                1000U, 500U, 8000U,
+                                                MOTION_NOHOME_INTER_CMD_DELAY_MS,
                                                 tag);
 }
 
@@ -373,6 +608,19 @@ mb_result_t motion_move_between_nohome_relaxed_quick(float x_now, float y_now,
                                                 MOTION_MANUAL_JOG_BASE_VMAX,
                                                 80U, 90U, 500U, 5U,
                                                 NULL);
+}
+
+mb_result_t motion_move_between_nohome_patrol(float x_now, float y_now,
+                                              float x_next, float y_next,
+                                              float takeup_gain,
+                                              float payout_gain)
+{
+    return motion_move_between_nohome_scaled_ex(x_now, y_now, x_next, y_next,
+                                                takeup_gain, payout_gain,
+                                                MOTION_PATROL_BASE_VMAX,
+                                                1200U, 700U, 12000U,
+                                                MOTION_PATROL_INTER_CMD_DELAY_MS,
+                                                "patrol");
 }
 
 mb_result_t motion_jog_step_start(float x_now, float y_now,
@@ -436,12 +684,15 @@ mb_result_t motion_jog_step_start(float x_now, float y_now,
             vmax = 1U;
         }
 
-        r = motor_move_pos(id, dir, vmax, mag, MB_MODE_REL_CUR, MB_SYNC_BUFFER);
+        motion_pre_buffer_delay(id);
+        r = motion_buffer_move_pos_retry(id, dir, vmax, mag,
+                                         MB_MODE_REL_CUR, "jog");
         if (r != MB_OK) {
             motion_stop_all_now();
             return r;
         }
-        HAL_Delay(20);
+        motion_delay_service(MOTION_MANUAL_JOG_INTER_CMD_DELAY_MS);
+        motion_post_buffer_delay(id);
     }
 
     {
