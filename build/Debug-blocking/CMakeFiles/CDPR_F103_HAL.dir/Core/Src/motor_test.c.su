@@ -1,0 +1,17 @@
+D:/CDPR_F103_HAL/Core/Src/motor_test.c:28:16:MotorTest_ReadCommand	16	static
+D:/CDPR_F103_HAL/Core/Src/motor_test.c:33:17:MotorTest_AbsError	40	static
+D:/CDPR_F103_HAL/Core/Src/motor_test.c:39:16:MotorTest_AnyIndividualOffset	16	static
+D:/CDPR_F103_HAL/Core/Src/motor_test.c:47:16:MotorTest_EnableAll	24	static
+D:/CDPR_F103_HAL/Core/Src/motor_test.c:65:16:MotorTest_ReadAllPositions	32	static
+D:/CDPR_F103_HAL/Core/Src/motor_test.c:85:13:MotorTest_CheckCommunication	40	static
+D:/CDPR_F103_HAL/Core/Src/motor_test.c:120:13:MotorTest_StopAll	32	static
+D:/CDPR_F103_HAL/Core/Src/motor_test.c:132:16:MotorTest_DelayWithEmergencyStop	24	static
+D:/CDPR_F103_HAL/Core/Src/motor_test.c:149:16:MotorTest_VerifyAll	80	static
+D:/CDPR_F103_HAL/Core/Src/motor_test.c:189:16:MotorTest_RunSynchronous	56	static
+D:/CDPR_F103_HAL/Core/Src/motor_test.c:234:13:MotorTest_SynchronousCommand	16	static
+D:/CDPR_F103_HAL/Core/Src/motor_test.c:266:16:MotorTest_VerifySingle	64	static
+D:/CDPR_F103_HAL/Core/Src/motor_test.c:296:13:MotorTest_MoveSelected	48	static
+D:/CDPR_F103_HAL/Core/Src/motor_test.c:367:13:MotorTest_SelectMotor	16	static
+D:/CDPR_F103_HAL/Core/Src/motor_test.c:380:13:MotorTest_PrintMenu	8	static
+D:/CDPR_F103_HAL/Core/Src/motor_test.c:398:6:MotorTest_Init	16	static
+D:/CDPR_F103_HAL/Core/Src/motor_test.c:407:6:MotorTest_Loop	16	static

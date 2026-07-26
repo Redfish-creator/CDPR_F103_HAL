@@ -1,0 +1,4 @@
+D:/CDPR_F103_HAL/Core/Src/kinematics.c:14:6:kin_ik	48	static
+D:/CDPR_F103_HAL/Core/Src/kinematics.c:23:7:kin_home_len	32	static
+D:/CDPR_F103_HAL/Core/Src/kinematics.c:30:9:kin_in_range	16	static
+D:/CDPR_F103_HAL/Core/Src/kinematics.c:39:9:kin_fk	136	static
