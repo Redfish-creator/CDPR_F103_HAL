@@ -1,47 +1,66 @@
 # 串口逐段采集与实际绳长模型
 
-更新时间：2026-07-24
+更新时间：2026-07-26
 
 ## 当前结论边界
 
 - `data/serial_evidence_2026-07-24.csv` 是从本次聊天粘贴的串口输出中逐项核对出的证据表，不是原始串口文本的完整替代品。
-- 当前输出在每个运动小段都有 `from/to`、`dL[4]`、`cmd[4]`、`bal`、四电机缓冲结果、同步触发结果和一组随后取得的视觉数据。
-- 当前固件已在每个 `PATROL SEG` 完成后读取一次 `enc_before/enc_after/denc`；读回失败仍输出 `NA` 和结果码，不能记成 0，也不能反推为命令值。`PATROL NODE`、`PATROL CAL` 的读回仍保留，用于端点统计。
+- 已保存的历史/诊断输出在每个运动小段包含 `from/to`、`dL[4]`、`cmd[4]`、
+  `bal`、四电机缓冲结果、同步触发结果和随后取得的视觉数据。
+- 当前默认 `DMA-COMPACT1` 比赛固件不打印 `PATROL SEG/NODE/CAL/AVG`，也不在
+  segment、视觉确认角点或回零完成后执行遥测编码器读取。每个角点回中心前的
+  四台位置读取仍保留，因为它们直接计算返回电机零点的位移。
+- 只有专门的 `Debug-dense` 诊断构建才恢复逐段
+  `enc_before/enc_after/denc`、角点 `PATROL CAL/AVG enc` 和完整过程日志。
 - 现有视觉数据是运动后取得的最新帧，但必须同时保留 `cnt` 和 `age`。帧计数不增长且 `age` 递增时，坐标是陈旧值，不能用于拟合。
 - `soft` 是控制器内部目标/估计，不是视觉实测位置；`laser` 是激光点视觉坐标；`circle` 是当前检测到的圆心；`err=laser-circle`；`enc` 是相对电机零点的 0.1° 单位位置。编码器零点不等于视觉中心归零。
 
-## 当前固件输出格式
+## 诊断构建输出格式
 
-每个 segment 会输出三行、共享 `seq`：
+`Debug-dense` 的每个 segment 会输出三行、共享 `seq`；默认比赛固件不输出
+这些行：
 
 ```text
 PATROL SEG ... release<=... from=... to=... dL=[...] cmd=[...] gain=[...]
 PATROL SEG BUS ... dir=[...] mag=[...] vmax=[...] motor=[...] trigger=... trigger_attempted=...
-PATROL SEG DATA ... tick=... enc_before=[...] enc_after=[...] denc=[...]
+PATROL SEG DATA ... tick=... enc_sample=DEFERRED_TO_CORNER
     laser=(x,y,age,cnt=...) circle=(x,y,age,cnt=...) err=(...)
-    tilt=(x,y,age,cnt=...) quality=GOOD|ENC_PARTIAL|VISION_STALE|CIRCLE_STALE|COMM_FAIL
+    tilt=(x,y,age,cnt=...)
+    quality=CMD_OK_VISION_FRESH_ENC_DEFERRED|GOOD|ENC_PARTIAL|VISION_STALE|CIRCLE_STALE|COMM_FAIL
 ```
 
-`PATROL SEG BASE` 标记一次中心视觉/电机归零后的编码器基线。`seq` 是固件单调递增的运动事务号；`step/seg` 是路径位置，`fine=1` 表示角点精修。`PATROL NODE enc_src=SEG` 表示复用刚完成 segment 的读数，避免在节点重复增加四次总线访问；只有末段读回不完整时才补读并标为 `enc_src=READ`。通信异常时还会紧接着打印原始 `tx/rx` 十六进制帧、长度、CRC 和 exception code。
+`PATROL SEG BASE enc=DEFERRED profile=CORNER_ONLY` 和
+`CMD_OK_VISION_FRESH_ENC_DEFERRED` 是上一版稳定日志字段；它们只表示该段没有
+编码器读回，不能解释为实际位移已验证。`seq` 是固件单调递增的运动事务号；
+`step/seg` 是路径位置，`fine=1` 表示角点精修。通信异常的原始 `tx/rx`、
+长度、CRC、exception code、耗时和 `uart_error` 在精简比赛固件中仍保留。
 
-## 下一批原始记录格式
+## 专项诊断的下一批原始记录格式
 
-建议每次上电生成唯一 `run_id`，每个 segment 在“发命令前”和“运动完成后”各落一条记录。原始文本与结构化 CSV 同时保存。
+只有用户明确要求重新做通信或绳长模型实验时，才使用 `Debug-dense`：建议每次
+上电生成唯一 `run_id`，每个 segment 在“发命令前”和“运动完成后”各落一条
+记录，原始文本与结构化 CSV 同时保存。比赛默认不承担此采集负载。
 
 每段至少记录：
 
 1. 运行上下文：`run_id`、单调时间、巡检模式、waypoint 名称、`step/total`、`seg/seg_total`。
 2. 运动目标：`from_soft`、`to_soft`、理论 `dL[4]`、实际下发方向、`cmd[4]`、速度、加速度、`gain(T/P)`、`bal` 及限幅原因。
 3. 通信证据：每台电机每次 attempt 的结果、请求字节、原始响应字节、响应长度、CRC 接收值/计算值、Modbus exception code、同步触发结果、事务耗时。成功帧可只保留摘要，失败帧必须保留原始十六进制。
-4. 运动前后读回：`enc_before[4]`、`enc_after[4]`、`enc_delta[4]`、电机状态/报警；同时在每次实验开始记录每台驱动的固件版本、协议/地址映射、相电流、母线电压和温度（若寄存器支持）。
+4. 编码器读回：只有专项诊断才启用角点或每段
+   `enc_before[4]`、`enc_after[4]`、`enc_delta[4]`。同时在每次实验开始记录
+   每台驱动的固件版本、协议/地址映射、相电流、母线电压和温度（若寄存器支持）。
 5. 视觉证据：`laser/circle/err/tilt`、各自 `cnt`、`age`、激光与圆是否配对、圆的类别、是否为本 waypoint 的目标圆。
 6. 现场标签：M1～M4 的松/正常/紧、是否下垂、是否打滑、异常声音、人工急停等。无法确认时写“待确认”。
 
-一条运动不能仅以“命令已发送”作为完成证据。拟合样本应以“同步触发成功 + 运动后编码器读回有效 + 视觉有效”作为完整样本；只有部分字段有效的记录保留，但单独标记质量等级。
+一条运动不能仅以“命令已发送”作为拟合证据。完整角点拟合样本应以“同步触发
+成功 + 诊断编码器读回有效 + 视觉有效”为准；比赛默认的状态日志不具备逐段
+真实编码器标签。只有部分字段有效的记录保留，但单独标记质量等级。
 
 ## 模型路线
 
-目前不适合直接训练黑盒深度网络。LT 只有 `n=2`，RB 只有 `n=1`，RT/LB 尚无视觉确认；新固件虽已记录普通 segment 编码器，但现场有效样本仍不足。样本规模和可观测量不足，黑盒模型会把松线、路径方向和通信异常混在一起。
+目前不适合直接训练黑盒深度网络。历史样本虽然已覆盖四角，但重复次数、现场
+松紧标签和跨方向样本仍不足。样本规模和可观测量不足，黑盒模型会把松线、
+路径方向和通信异常混在一起。
 
 推荐使用“几何基线 + 每电机残差模型”：
 

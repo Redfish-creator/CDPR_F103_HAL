@@ -1,18 +1,20 @@
 # NEXT_CHAT_HANDOFF_2026-07-25
 
-本文件给下一个新对话直接接手使用。当前代码已经按用户要求回到
-`Q2-CAL-JOG-v12-ZERO-RECOVER`。
+本文件原本给 2026-07-25 后续新对话接手使用。当前代码已被后续
+`Q2-CAL-JOG-v12-Q3-ORDER-PC2OK-RETRY3` 覆盖；最新状态以
+`docs/PROJECT_HANDOFF.md`、`docs/DECISIONS.md`、`docs/DATA_DICTIONARY.md`
+和 `data/site_parameters.csv` 为准。
 
 ## 直接给下一个新对话的关键词
 
 ```text
-CDPR Q2-CAL-JOG-v12-ZERO-RECOVER；工作区 D:\CDPR_F103_HAL；
+CDPR Q2-CAL-JOG-v12-Q3-ORDER-PC2OK-RETRY3；工作区 D:\CDPR_F103_HAL；
 先读 AGENTS.md 指定的 docs/SITE_LAYOUT.md、docs/PROJECT_HANDOFF.md、docs/DECISIONS.md、docs/DATA_DICTIONARY.md、data/site_parameters.csv；
 不要回退用户已有修改；不要猜现场信息；soft/laser/circle/err/enc 按 DATA_DICTIONARY.md 解释；
-当前代码状态：已回到 V12 基线；不启用 V13 角点 profile；不启用 V14 普通巡检段失败自动回中心重走；不启用 V15 retry-relax 自动松线；
-V12 保留：nohome 视觉归零基础写间隔 160ms，M2 额外 120ms 前静默和 80ms 后静默，中心重置归零失败后最多一次“停机->等待800ms->编码器回零->视觉归零”恢复；
-V12 现场结果：完整跑完 28 waypoint，confirmed=0x0D，unconfirmed=0x02；LT/RB/LB 视觉确认，RT 未确认且看到中心圆；LB 附近有一次 M4 编码器读 TIMEOUT 但不是运动缓冲写失败；
-构建已通过：cmake --build --preset Debug --target CDPR_F103_HAL；hex 在 build\Debug\CDPR_F103_HAL.hex；RAM 5KB/48KB，FLASH 92572B/256KB。
+当前代码状态：独立四角点任务；默认顺序 LT>RT>RB>LB；KEY1/PA15 进入 OLED 顺序选择模式，PC0 上一个，PC1 下一个，PC2 确认，PC3 返回，PA0/WK_UP 按已选顺序启动；选择键动作通过 USART1 调试串口打印；
+V12 当前保留：nohome 视觉归零基础写间隔 160ms，M2 额外 120ms 前静默和 80ms 后静默，中心重置和角点任务通信失败后的安全恢复机会均为 3 次；
+最新完整四角现场结果来自 run15，confirmed=0x0F，unconfirmed=0x00；LT/RT/RB/LB 均视觉确认；LB 为 M1 所在角点，当前有 LB 专用拉紧 gain；
+构建已通过：cmake --build --preset Debug --target CDPR_F103_HAL；hex 在 build\Debug\CDPR_F103_HAL.hex；RAM 5136B/48KB，FLASH 99964B/256KB。
 ```
 
 ## 当前工程状态
@@ -20,10 +22,10 @@ V12 现场结果：完整跑完 28 waypoint，confirmed=0x0D，unconfirmed=0x02�
 - 当前工作目录：`D:\CDPR_F103_HAL`。
 - 当前分支曾为：`backup-current`。
 - 工作区是脏工作区，已有多处未提交修改；不要执行 `git reset --hard`，不要回退用户已有修改。
-- 当前启动标记：`[BOOT] CDPR backup-current app start Q2-CAL-JOG-v12-ZERO-RECOVER`。
+- 当前启动标记：`[BOOT] CDPR backup-current app start Q2-CAL-JOG-v12-Q3-ORDER-PC2OK-RETRY3`。
 - 当前构建命令已通过：`cmake --build --preset Debug --target CDPR_F103_HAL`。
 - 当前 hex：`D:\CDPR_F103_HAL\build\Debug\CDPR_F103_HAL.hex`。
-- 当前资源占用：RAM `5 KB / 48 KB (10.42%)`，FLASH `92572 B / 256 KB (35.31%)`。
+- 当前资源占用：RAM `5136 B / 48 KB (10.45%)`，FLASH `99964 B / 256 KB (38.13%)`。
 
 ## 新对话开始必须先读
 
@@ -49,7 +51,12 @@ V12 现场结果：完整跑完 28 waypoint，confirmed=0x0D，unconfirmed=0x02�
 - 相对缓冲写 `TIMEOUT/CRC_BAD/REJECTED/FRAME_BAD/TX_FAIL` 后不能原地重发同一相对命令，不能强行同步触发。
 - 继续开发前保存新串口数据，尤其是每个 waypoint/segment 的 `dL/cmd/enc/vision`。
 
-## 当前保留的 V12 运动策略
+## 历史保留的 V12 运动策略
+
+本文件为 2026-07-25 交接快照。当前代码已被后续
+`Q2-CAL-JOG-v12-Q3-ORDER-PC2OK-RETRY3` 覆盖；最新状态以
+`docs/PROJECT_HANDOFF.md`、`docs/DECISIONS.md` 和 `data/site_parameters.csv`
+为准。
 
 - 巡检基础收/放绳为 T=`0.99`、P=`1.01`。
 - 中心轻预紧仍为 `40` counts、`vmax=60`、稳定 `300 ms`。
@@ -58,7 +65,7 @@ V12 现场结果：完整跑完 28 waypoint，confirmed=0x0D，unconfirmed=0x02�
 - 视觉归零/nohome 小步运动四台缓冲写入基础间隔为 `160 ms`。
 - M2 每次 `0x10` 缓冲写前额外静默 `120 ms`，成功后额外静默 `80 ms`。
 - 上层手动回零/预紧也对 M2 使用同样的 `120 ms` 前静默和 `80 ms` 后静默。
-- PA0 起步、中心重置、最终中心刷新都使用带恢复的自动归零入口；首次归零失败后，只做一次停机、等待 `800 ms`、电机回零、视觉归零。
+- PA0 起步、中心重置、最终中心刷新都使用带恢复的自动归零入口；该历史版本首次归零失败后，只做一次停机、等待 `800 ms`、电机回零、视觉归零。
 - 普通巡检段/细调段运动通信失败时，当前 V12 不自动重走普通段，也不原地重发失败的相对缓冲命令；只记录失败段并中止。
 
 ## 已回退的试验
@@ -106,7 +113,7 @@ recovery limit count=2/2，abort
 ```text
 请继续处理 D:\CDPR_F103_HAL 的 CDPR 固件。先阅读 AGENTS.md 指定的 docs/SITE_LAYOUT.md、docs/PROJECT_HANDOFF.md、docs/DECISIONS.md、docs/DATA_DICTIONARY.md、data/site_parameters.csv，不要回退已有修改。
 
-当前代码已按用户要求回到 Q2-CAL-JOG-v12-ZERO-RECOVER，已构建通过，hex 在 build\Debug\CDPR_F103_HAL.hex。当前不启用 V13 角点 profile、不启用 V14 普通巡检段失败自动回中心重走、不启用 V15 retry-relax 自动松线。保留 V12 的 nohome 160ms、M2 120ms/80ms 额外静默和中心重置归零一次安全恢复。
+当前代码已更新到 Q2-CAL-JOG-v12-Q3-ORDER-PC2OK-RETRY3，已构建通过，hex 在 build\Debug\CDPR_F103_HAL.hex。当前为独立四角点任务；默认顺序 LT>RT>RB>LB，KEY1/PA15 进入 OLED 顺序选择模式，PC0 上一个，PC1 下一个，PC2 确认，PC3 返回，PA0/WK_UP 按已选顺序启动。中心重置和角点任务通信失败后的安全恢复机会均为 3 次；仍不原地重发失败的不确定相对缓冲命令。
 
-下一步请先用新的现场完整串口验证 V12 原始行为。重点看是否启动标记为 Q2-CAL-JOG-v12-ZERO-RECOVER，且不再出现 corner_profile=ON、PATROL profile、profile=、PATROL move recovery after waypoint。继续修改前先保存每个 waypoint/segment 的 dL/cmd/enc/vision。
+下一步请先用新的现场完整串口验证 Q3 顺序选择和三次恢复行为。重点看是否启动标记为 Q2-CAL-JOG-v12-Q3-ORDER-PC2OK-RETRY3，KEY1/PA15 菜单是否与 PC0-PC3 jog 隔离，PC2/PC3 键位是否正确，且通信失败恢复是否从当前角点 job 的 IN1 重新开始。继续修改前先保存每个 waypoint/segment 的 dL/cmd/enc/vision。
 ```

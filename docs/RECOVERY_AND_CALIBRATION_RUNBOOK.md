@@ -89,25 +89,27 @@ M1、M2 已缓存，M3 失败，M4 和同步触发均未继续。失败后 `soft
 3. 在 RB 附近记录四台相电流或张力；如果 M4 松而其余三台紧，优先判断是否应该释放过紧组，而不是盲目继续收紧 M4。
 4. 平衡增益只做单变量、低速对照，且必须同时看视觉位置、四台电流/张力和绳是否下垂；没有这些证据时不指定新的固定增益。
 
-## 4. 每个 segment 的完整样本
+## 4. 稳定运行与高密度诊断样本
 
-当前固件每个普通 segment 已输出 `dL/cmd/通信结果/随后视觉`，并尝试读取 `enc_before/enc_after/enc_delta`；读回不完整时仍必须保留 `NA` 和结果码。每个小段必须保存：
+当前默认 `STABLE_LITE` 固件每个普通 segment 输出 `dL/cmd/通信结果/随后视觉`，但不再增加四次编码器轮询；日志明确写 `enc_sample=DEFERRED_TO_CORNER`。视觉确认角点时再由 `PATROL CAL/AVG` 保存四台真实 `enc`。若专门研究逐段绳长模型，可在静态通信通过后用高密度诊断构建恢复 `enc_before/enc_after/enc_delta`；读回不完整时仍必须保留 `NA` 和结果码，不能把 `cmd` 当成 `enc`。
+
+稳定现场运行每个小段必须保存：
 
 ```text
 run_id, timestamp, waypoint, step/total, seg/seg_total
 soft_from, soft_to
 dL[4], cmd[4], dir[4], mag[4], vmax[4], bal
-enc_before[4], enc_after[4], enc_delta[4]
+enc_sample=DEFERRED_TO_CORNER
 current[4], voltage/status/alarm[4]   # 寄存器映射确认后再增加
 laser, circle, err, tilt, cnt, age, expected_circle
 raw_tx, raw_rx, exception, crc_calc, transaction_ms  # 当前在失败事务打印
 slack_label[4], trigger_result, sample_quality
 ```
 
-完整训练样本的最低门槛：
+角点完整训练样本的最低门槛：
 
 - 四电机缓存和同步触发均成功。
-- 运动后编码器全部读回成功。
+- 视觉确认角点后，四台编码器全部读回成功。
 - 视觉帧持续更新，`age <= 500 ms`。
 - 看到的是本 waypoint 的目标圆；RT 当前看到 `(0,0)`，不能作为 RT 标定样本。
 - 没有 `CRC_BAD/REJECTED`，没有松绳下垂或人工干预。

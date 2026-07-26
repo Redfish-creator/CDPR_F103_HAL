@@ -1,0 +1,53 @@
+category,item,axis_or_motor,value,unit,source,status,notes
+firmware,boot_marker,value,Q2-CAL-JOG-v12-CORNER-JOBS-RESET1,version,user serial,confirmed,current run pasted by user
+patrol,route_order,value,"LT job -> center reset -> RT job -> center reset -> RB job -> center reset -> LB job -> center reset",order,user serial,confirmed,standalone corner jobs
+patrol,tension_profile,center,40,0.1deg,user serial,confirmed,center tension normalize count
+patrol,tension_profile,center_vmax,60,0.1RPM,user serial,confirmed,center tension normalize vmax
+patrol,tension_profile,path_takeup_gain,0.99,gain,user serial,confirmed,before LT-only tighten change
+patrol,tension_profile,path_payout_gain,1.01,gain,user serial,confirmed,before LT-only tighten change
+patrol,tension_profile,vmax,300,0.1RPM,user serial,confirmed,V12 patrol speed
+patrol,target_seed,value,disabled,boolean,user serial,confirmed,using nominal soft targets and visual fine
+field_observation,corner1_LB,tension,loose,status,user observation,confirmed,"user clarified corner1 is motor1-side corner; in current route this is the last job LB"
+target_mask,run15,confirmed,0x0F,mask,user serial,confirmed,LT RT RB LB all visually confirmed
+target_mask,run15,unconfirmed,0x00,mask,user serial,confirmed,no unconfirmed corner after final run
+calibration,run15_LT_n1,soft,"(-16.97,14.06)",cm,user serial PATROL CAL TABLE,confirmed,n=1
+calibration,run15_LT_n1,err,"(-0.30,-0.50)",cm,user serial PATROL CAL TABLE,confirmed,err=laser-circle
+calibration,run15_LT_n1,tilt,"(-0.07,0.54)",tilt,user serial PATROL CAL TABLE,confirmed,tilt_y remains relatively high
+calibration,run15_LT_n1,enc,"[4617,-7441,22475,18704]",0.1deg,user serial PATROL CAL TABLE,confirmed,encoder relative to motor zero
+calibration,run15_RT_n1,soft,"(20.77,18.01)",cm,user serial PATROL CAL TABLE,confirmed,n=1
+calibration,run15_RT_n1,err,"(-0.20,0.00)",cm,user serial PATROL CAL TABLE,confirmed,err=laser-circle
+calibration,run15_RT_n1,tilt,"(0.05,0.07)",tilt,user serial PATROL CAL TABLE,confirmed,
+calibration,run15_RT_n1,enc,"[26368,20165,7765,-10160]",0.1deg,user serial PATROL CAL TABLE,confirmed,encoder relative to motor zero
+calibration,run15_RB_n1,soft,"(17.28,-15.40)",cm,user serial PATROL CAL TABLE,confirmed,n=1
+calibration,run15_RB_n1,err,"(-0.40,0.30)",cm,user serial PATROL CAL TABLE,confirmed,err=laser-circle
+calibration,run15_RB_n1,tilt,"(0.06,-0.04)",tilt,user serial PATROL CAL TABLE,confirmed,
+calibration,run15_RB_n1,enc,"[7381,-5852,-19556,-23688]",0.1deg,user serial PATROL CAL TABLE,confirmed,encoder relative to motor zero
+calibration,run15_LB_n1,soft,"(-15.18,-12.93)",cm,user serial PATROL CAL TABLE,confirmed,n=1
+calibration,run15_LB_n1,err,"(-0.10,0.10)",cm,user serial PATROL CAL TABLE,confirmed,err=laser-circle
+calibration,run15_LB_n1,tilt,"(0.00,-0.14)",tilt,user serial PATROL CAL TABLE,confirmed,
+calibration,run15_LB_n1,enc,"[-17270,-20334,6061,-3943]",0.1deg,user serial PATROL CAL TABLE,confirmed,encoder relative to motor zero
+failure,run15_RT_first_attempt,waypoint,RT,count,user serial,confirmed,communication failure then job restarted from center
+failure,run15_RT_first_attempt,step,8/16,count,user serial,confirmed,
+failure,run15_RT_first_attempt,segment,3/6,count,user serial,confirmed,
+failure,run15_RT_first_attempt,from,"(13.33,13.83)",cm,user serial,confirmed,
+failure,run15_RT_first_attempt,to,"(14.00,14.75)",cm,user serial,confirmed,
+failure,run15_RT_first_attempt,dL,"[1.0665,-0.7622,0.6329,0.3273]",cm,user serial,confirmed,negative=takeup positive=payout
+failure,run15_RT_first_attempt,cmd,"[1.0772,0.7545,0.6392,0.3306]",cm,user serial,confirmed,command magnitude
+failure,run15_RT_first_attempt,motor,2,index,user serial,confirmed,M2 buffered write TIMEOUT
+failure,run15_RT_first_attempt,result,TIMEOUT,status,user serial,confirmed,trigger_attempted=0 attempted=0x03 failed_m=2
+recovery,run15_RT_first_attempt,result,OK,status,user serial,confirmed,stop all wait 800ms motor return visual zero baseline reset then restart RT
+failure,run15_RB_first_attempt,waypoint,RB-IN2,count,user serial,confirmed,communication failure then job restarted from center
+failure,run15_RB_first_attempt,step,10/16,count,user serial,confirmed,
+failure,run15_RB_first_attempt,segment,1/3,count,user serial,confirmed,
+failure,run15_RB_first_attempt,from,"(4.00,-4.00)",cm,user serial,confirmed,
+failure,run15_RB_first_attempt,to,"(5.33,-5.33)",cm,user serial,confirmed,
+failure,run15_RB_first_attempt,dL,"[0.2645,0.3262,-1.6062,1.7327]",cm,user serial,confirmed,negative=takeup positive=payout
+failure,run15_RB_first_attempt,cmd,"[0.2671,0.3295,1.5902,1.7501]",cm,user serial,confirmed,command magnitude
+failure,run15_RB_first_attempt,motor,2,index,user serial,confirmed,M2 buffered write TIMEOUT
+failure,run15_RB_first_attempt,result,TIMEOUT,status,user serial,confirmed,trigger_attempted=0 attempted=0x03 failed_m=2
+recovery,run15_RB_first_attempt,result,OK,status,user serial,confirmed,stop all wait 800ms motor return visual zero baseline reset then restart RB
+failure,run15_RT_in2_encoder_read,motor,2,index,user serial,confirmed,encoder read TIMEOUT after movement; quality=ENC_PARTIAL
+failure,run15_LB_fine_encoder_read,motor,1,index,user serial,confirmed,encoder read TIMEOUT after movement; later read recovered
+patrol,run15_final_center,soft,"(0.00,0.00)",cm,user serial,confirmed,after LB reset and final visual center check
+patrol,run15_final_center,err,"(-0.20,0.00)",cm,user serial,confirmed,MANUAL vision jog latest after PATROL done
+note,raw_log_coverage,value,summary,scope,user serial,confirmed,"This file preserves key pasted serial evidence; it is not a complete line-by-line raw serial capture."

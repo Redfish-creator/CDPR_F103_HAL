@@ -1,0 +1,18 @@
+run,boot_marker,rx_mode,item,motor,transaction_id,result,function,register,quantity,rx_len,expected_len,raw_len,frame_offset,tx_us,first_rx_us,last_rx_us,total_ms,exception,uart_error,firmware_raw,hardware_raw,vbus_mV,state,notes
+17,Q2-CAL-JOG-v12-Q3-MB-DIAG1,DMA_SCAN,VERSION_X,1,14,OK,0x04,0x0010,2,9,9,9,0,702,1197,1896,2,0x00,0x00000000,107,0x230A,,,complete CRC-valid response
+17,Q2-CAL-JOG-v12-Q3-MB-DIAG1,DMA_SCAN,VBUS,1,15,OK,0x04,0x0024,1,7,7,7,0,703,1166,1688,1,0x00,0x00000000,,,23905,,complete CRC-valid response
+17,Q2-CAL-JOG-v12-Q3-MB-DIAG1,DMA_SCAN,HEARTBEAT,1,16,REJECTED,0x04,0x0016,2,5,9,5,0,705,1166,1513,1,0x01,0x00000000,,,,,"request used qty=2; manual shows qty=1; raw=01 84 01 82 C0"
+17,Q2-CAL-JOG-v12-Q3-MB-DIAG1,DMA_SCAN,STATE_X,1,17,OK,0x04,0x0050,1,7,7,7,0,700,1174,1696,1,0x00,0x00000000,,,,0x03,enabled and reached
+17,Q2-CAL-JOG-v12-Q3-MB-DIAG1,DMA_SCAN,VERSION_X,2,18,OK,0x04,0x0010,2,9,9,9,0,700,1175,1874,2,0x00,0x00000000,107,0x230A,,,complete CRC-valid response
+17,Q2-CAL-JOG-v12-Q3-MB-DIAG1,DMA_SCAN,VBUS,2,19,OK,0x04,0x0024,1,7,7,7,0,702,1228,1754,1,0x00,0x00000000,,,23539,,complete CRC-valid response
+17,Q2-CAL-JOG-v12-Q3-MB-DIAG1,DMA_SCAN,HEARTBEAT,2,20,REJECTED,0x04,0x0016,2,5,9,5,0,698,1186,1532,1,0x01,0x00000000,,,,,"request used qty=2; manual shows qty=1; raw=02 84 01 72 C0"
+17,Q2-CAL-JOG-v12-Q3-MB-DIAG1,DMA_SCAN,STATE_X,2,21,OK,0x04,0x0050,1,7,7,7,0,700,1188,1708,1,0x00,0x00000000,,,,0x03,enabled and reached
+17,Q2-CAL-JOG-v12-Q3-MB-DIAG1,DMA_SCAN,VERSION_X,3,22,OK,0x04,0x0010,2,9,9,9,0,703,1177,1876,2,0x00,0x00000000,107,0x230A,,,complete CRC-valid response
+17,Q2-CAL-JOG-v12-Q3-MB-DIAG1,DMA_SCAN,VBUS,3,23,OK,0x04,0x0024,1,7,7,7,0,699,1176,1698,1,0x00,0x00000000,,,23526,,complete CRC-valid response
+17,Q2-CAL-JOG-v12-Q3-MB-DIAG1,DMA_SCAN,HEARTBEAT,3,24,REJECTED,0x04,0x0016,2,5,9,5,0,705,1187,1533,1,0x01,0x00000000,,,,,"request used qty=2; manual shows qty=1; raw=03 84 01 23 00"
+17,Q2-CAL-JOG-v12-Q3-MB-DIAG1,DMA_SCAN,STATE_X,3,25,OK,0x04,0x0050,1,7,7,7,0,700,1188,1708,1,0x00,0x00000000,,,,0x03,enabled and reached
+17,Q2-CAL-JOG-v12-Q3-MB-DIAG1,DMA_SCAN,VERSION_X,4,26,OK,0x04,0x0010,2,9,9,9,0,700,1207,1903,2,0x00,0x00000000,200,0x230A,,,complete CRC-valid response
+17,Q2-CAL-JOG-v12-Q3-MB-DIAG1,DMA_SCAN,VBUS,4,27,OK,0x04,0x0024,1,7,7,7,0,706,1207,1734,1,0x00,0x00000000,,,23869,,complete CRC-valid response
+17,Q2-CAL-JOG-v12-Q3-MB-DIAG1,DMA_SCAN,HEARTBEAT,4,28,REJECTED,0x04,0x0016,2,5,9,5,0,703,1167,1513,1,0x01,0x00000000,,,,,"request used qty=2; manual shows qty=1; raw=04 84 01 92 C1"
+17,Q2-CAL-JOG-v12-Q3-MB-DIAG1,DMA_SCAN,STATE_X,4,29,OK,0x04,0x0050,1,7,7,7,0,705,1176,1697,1,0x00,0x00000000,,,,0x03,enabled and reached
+17,Q2-CAL-JOG-v12-Q3-MB-DIAG1,DMA_SCAN,RUN_RESULT,,,"PREFLIGHT_ABORT",,,,,,,,,,,,,,,,,,"all motors returned hardware_raw=0x230A; code rejected undocumented series_code=2; no synchronized trigger was sent"

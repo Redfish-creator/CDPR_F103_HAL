@@ -8,6 +8,13 @@
 #include <stdio.h>
 #include <string.h>
 #include "vision.h"
+
+#if MOTION_COMPACT_LOG
+#define MOTION_TRACE(...) do { } while (0)
+#else
+#define MOTION_TRACE(...) printf(__VA_ARGS__)
+#endif
+
 static float cur_x = 0.0f, cur_y = 0.0f;
 static float cur_L[4];
 static float home_L[4];      /* 中心(home)处绳长, 编码器在此清零 */
@@ -277,8 +284,12 @@ mb_result_t motion_move_to(float x, float y)
 
     float dmax = 0.0f;
     for (int i = 0; i < 4; i++) { dL[i] = Lt[i] - cur_L[i]; float a = fabsf(dL[i]); if (a > dmax) dmax = a; }
-    printf("move(%.1f,%.1f) dL=%.2f %.2f %.2f %.2f  dmax=%.2f\r\n", x, y, dL[0], dL[1], dL[2], dL[3], dmax);
-    if (dmax < 0.01f) { printf("  skip\r\n"); return MB_OK; }
+    MOTION_TRACE("move(%.1f,%.1f) dL=%.2f %.2f %.2f %.2f  dmax=%.2f\r\n",
+                 x, y, dL[0], dL[1], dL[2], dL[3], dmax);
+    if (dmax < 0.01f) {
+        MOTION_TRACE("  skip\r\n");
+        return MB_OK;
+    }
 
     /* 1) 缓存四条命令; 任何一条失败 -> 不触发, 直接返回 */
     for (int i = 0; i < 4; i++) {
@@ -292,12 +303,13 @@ mb_result_t motion_move_to(float x, float y)
         motion_pre_buffer_delay(id);
         mb_result_t rr = motion_buffer_move_pos_retry(id, dir, vmax, mag,
                                                       MOTION_MOVE_MODE, "move");
-        printf("  buf m%d: %s\r\n", id, motor_result_str(rr));
         if (rr != MB_OK) {
+            printf("  buf m%d: %s\r\n", id, motor_result_str(rr));
             printf("  buffer FAIL -> stop all, abort\r\n");
             motion_stop_all_now();
             return rr;
         }
+        MOTION_TRACE("  buf m%d: %s\r\n", id, motor_result_str(rr));
         motion_delay_service(20U);
         motion_post_buffer_delay(id);
     }
@@ -326,7 +338,7 @@ mb_result_t motion_move_to(float x, float y)
         int32_t exp = (int32_t)((home_L[id-1] - Lt[id-1]) * KIN_COUNTS_PER_CM);
         int32_t e = p - exp, ae = (e < 0) ? -e : e;
         if (ae > max_abs_err) max_abs_err = ae;
-        printf("  m%d pos=%ld  exp=%ld  (err=%ld)\r\n", id, p, exp, e);
+        MOTION_TRACE("  m%d pos=%ld  exp=%ld  (err=%ld)\r\n", id, p, exp, e);
         HAL_Delay(20);
     }
     if (!read_ok || max_abs_err > MOTION_VERIFY_TOL_COUNTS) {
@@ -356,7 +368,7 @@ uint8_t fine_tune_to(float xt, float yt)
         if (!vision_read_filtered(&xm, &ym)) return 0;
         float ex = xt - xm, ey = yt - ym;
         float e  = sqrtf(ex*ex + ey*ey);
-        printf("  fine k=%d meas(%.2f,%.2f) err=%.2f\r\n", k, xm, ym, e);
+        MOTION_TRACE("  fine k=%d meas(%.2f,%.2f) err=%.2f\r\n", k, xm, ym, e);
         if (e < FT_TOL_CM) return 1;                  /* 误差<阈值 -> 完成 */
 
         /* 世界误差 -> 绳长修正: 让吊舱从实测位走到目标位(欠松弛) */
@@ -389,7 +401,6 @@ static mb_result_t motion_move_between_nohome_scaled_ex(float x_now, float y_now
     }
 
     uint8_t verbose = (tag != NULL && tag[0] != '\0') ? 1U : 0U;
-    const char *move_tag = (verbose != 0U) ? tag : "nohome";
 
     if (takeup_gain <= 0.0f) takeup_gain = 1.0f;
     if (payout_gain <= 0.0f) payout_gain = 1.0f;
@@ -452,13 +463,13 @@ static mb_result_t motion_move_between_nohome_scaled_ex(float x_now, float y_now
     s_last_segment_report.bal = patrol_balance;
 
     if (verbose != 0U) {
-        printf("%s move %.1f %.1f -> %.1f %.1f dL=%.2f %.2f %.2f %.2f cmd=%.2f %.2f %.2f %.2f gain(T=%.2f P=%.2f) bal=%u\r\n",
-               move_tag, x_now, y_now, x_next, y_next,
-               dL[0], dL[1], dL[2], dL[3],
-               (double)cmd_cm[0], (double)cmd_cm[1],
-               (double)cmd_cm[2], (double)cmd_cm[3],
-               (double)takeup_gain, (double)payout_gain,
-               (unsigned int)patrol_balance);
+        MOTION_TRACE("%s move %.1f %.1f -> %.1f %.1f dL=%.2f %.2f %.2f %.2f cmd=%.2f %.2f %.2f %.2f gain(T=%.2f P=%.2f) bal=%u\r\n",
+                     tag, x_now, y_now, x_next, y_next,
+                     dL[0], dL[1], dL[2], dL[3],
+                     (double)cmd_cm[0], (double)cmd_cm[1],
+                     (double)cmd_cm[2], (double)cmd_cm[3],
+                     (double)takeup_gain, (double)payout_gain,
+                     (unsigned int)patrol_balance);
     }
 
     if (dmax < 0.01f || cmd_dmax < 0.01f) {
@@ -478,7 +489,22 @@ static mb_result_t motion_move_between_nohome_scaled_ex(float x_now, float y_now
     }
 #endif
 
-    for (int i = 0; i < 4; i++) {
+    for (uint8_t slot = 0U; slot < 4U; slot++) {
+        uint8_t i = slot;
+
+#if MOTION_PATROL_M2_FIRST
+        /*
+         * Patrol-only bus order. M2 historically failed most often while it
+         * occupied the second transaction slot. Put it first after the long
+         * motion/settle quiet period without changing motor IDs, magnitudes,
+         * speeds, or the final synchronized trigger.
+         */
+        if (tag != NULL && strcmp(tag, "patrol") == 0) {
+            static const uint8_t patrol_order[4] = {1U, 0U, 2U, 3U};
+            i = patrol_order[slot];
+        }
+#endif
+
         uint8_t id  = (uint8_t)(i + 1);
         uint8_t dir = motor_cable_direction(id, (dL[i] < 0.0f) ?
                                              MOTOR_CABLE_TAKEUP : MOTOR_CABLE_PAYOUT);
@@ -502,8 +528,13 @@ static mb_result_t motion_move_between_nohome_scaled_ex(float x_now, float y_now
                                                      MB_MODE_REL_CUR, "home");
         s_last_segment_report.attempted_mask |= (uint8_t)(1U << i);
         s_last_segment_report.motor_result[i] = r;
-        if (verbose != 0U || r != MB_OK) {
+        s_last_segment_report.bus_slot[i] = (uint8_t)(slot + 1U);
+        motor_get_last_transaction_summary(
+            &s_last_segment_report.motor_diag[i]);
+        if (r != MB_OK) {
             printf("  home buf m%d: %s\r\n", id, motor_result_str(r));
+        } else if (verbose != 0U) {
+            MOTION_TRACE("  home buf m%d: %s\r\n", id, motor_result_str(r));
         }
         if (r != MB_OK) {
             s_last_segment_report.failed_motor = id;
@@ -519,8 +550,10 @@ static mb_result_t motion_move_between_nohome_scaled_ex(float x_now, float y_now
     mb_result_t tr = motor_sync_trigger();
     s_last_segment_report.trigger_attempted = 1U;
     s_last_segment_report.trigger_result = tr;
-    if (verbose != 0U || tr != MB_OK) {
+    if (tr != MB_OK) {
         printf("  home trigger: %s\r\n", motor_result_str(tr));
+    } else if (verbose != 0U) {
+        MOTION_TRACE("  home trigger: %s\r\n", motor_result_str(tr));
     }
     if (tr != MB_OK) {
         motor_print_last_transaction_diag("  trigger failure");
@@ -547,8 +580,8 @@ static mb_result_t motion_move_between_nohome_scaled_ex(float x_now, float y_now
                                -(int32_t)cmd_mag[id - 1U];
             int32_t err = actual - expected;
             if (verbose != 0U) {
-                printf("  home m%d delta=%ld exp=%ld err=%ld\r\n",
-                       id, (long)actual, (long)expected, (long)err);
+                MOTION_TRACE("  home m%d delta=%ld exp=%ld err=%ld\r\n",
+                             id, (long)actual, (long)expected, (long)err);
             }
         } else {
             printf("  home m%d after read: %s\r\n", id, motor_result_str(pr));

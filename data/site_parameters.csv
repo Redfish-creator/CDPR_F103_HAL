@@ -164,14 +164,18 @@ threshold,MOTION_PATROL_DOM_PAYOUT_RATIO,value,0.70,ratio,Core/Src/motion.c,hist
 threshold,MOTION_PATROL_DOM_PAYOUT_GAIN,value,1.00,gain,Core/Src/motion.c,active-safe-neutral,old 0.86 retained only in historical logs
 threshold,MOTION_PATROL_SIDE_PAYOUT_GAIN,value,1.00,gain,Core/Src/motion.c,active-safe-neutral,old 1.03 retained only in historical logs
 threshold,MOTION_PATROL_BALANCE_ENABLE,value,0,boolean,Core/Src/motion.c,active-safe,unverified patrol balance compensation disabled after cable break
-threshold,MOTION_PATROL_BASE_VMAX,value,300,0.1RPM,Core/Src/motion.c,active-safe,patrol base speed reduced
+threshold,MOTION_PATROL_BASE_VMAX,value,300,0.1RPM,Core/Inc/motion.h,active-v12,patrol base speed restored from FIT360 trial to V12 value
 threshold,MOTION_MANUAL_JOG_BASE_VMAX,value,600,0.1RPM,Core/Src/motion.c,active-safe,retained first-question manual jog speed
 threshold,MOTION_MANUAL_JOG_INTER_CMD_DELAY_MS,value,120,ms,Core/Src/motion.c,active-trial,V11 increased after V10 M2 rx_len=0 402ms manual timeout
 threshold,MOTION_PATROL_INTER_CMD_DELAY_MS,value,160,ms,Core/Src/motion.c,active-trial,V11 increased after V10 M2 rx_len=0 401ms patrol timeout
 threshold,MOTION_M2_PRE_CMD_EXTRA_DELAY_MS,value,120,ms,Core/Src/motion.c,active-trial,V11 M2-specific quiet before 0x10 buffered write
 threshold,MOTION_M2_POST_CMD_EXTRA_DELAY_MS,value,80,ms,Core/Src/motion.c,active-trial,V11 M2-specific quiet after successful 0x10 buffered write
-threshold,EDGE_PATROL_SEGMENT_READ_GAP_MS,value,80,ms,Core/Src/task.c,active-trial,V9 keeps per-segment encoder logging while lowering read transaction density
-threshold,EDGE_PATROL_POST_READ_QUIET_MS,value,120,ms,Core/Src/task.c,active-trial,V9 quiet window after M4 encoder read before next patrol segment
+threshold,EDGE_PATROL_SEGMENT_READ_GAP_MS,value,80,ms,Core/Src/task.c,diagnostic-only,used only when high-density per-segment encoder reads are compiled on
+threshold,EDGE_PATROL_POST_READ_QUIET_MS,value,120,ms,Core/Src/task.c,diagnostic-only,used only after high-density per-segment encoder reads
+threshold,EDGE_PATROL_SEG_SETTLE_MS,value,300,ms,Core/Src/task.c,active-compact,settle and USART2 vision update window retained after each patrol move
+threshold,EDGE_PATROL_SEGMENT_ENCODER_READS,value,0,boolean,Core/Src/task.c,active-compact,per-segment encoder polling disabled; no corner telemetry reads in default competition build
+threshold,MOTION_PATROL_M2_FIRST,value,1,boolean,Core/Inc/motion.h,active-trial,patrol buffered write order M2 M1 M3 M4; synchronized trigger unchanged
+threshold,MOTOR_MODBUS_RX_IMPL,value,DMA_SCAN,enum,Core/Inc/motor.h,active-default,BLOCKING_BYTE retained only for A/B compile experiment
 threshold,MANUAL_JOG_RUN_CM,value,4.0,cm,Core/Src/task.c,active-safe,fixed throughout plane; only final boundary remainder is shorter
 threshold,MANUAL_JOG_SAFE_LIMIT_CM,value,20.0,cm,Core/Src/task.c,active-safe,soft-coordinate limit; physical visual boundary still requires confirmation
 threshold,EDGE_PATROL_TAKEUP_GAIN,value,0.99,gain,Core/Src/task.c,active-trial,patrol 1 percent less take-up than geometry
@@ -206,7 +210,7 @@ hardware,usart3_rx_dma,channel,3,index,Core/Src/motor.c,confirmed-from-code,DMA1
 threshold,MOTION_NOHOME_INTER_CMD_DELAY_MS,value,160,ms,Core/Src/motion.c,active-trial,V12 visual zero/nohome buffered-write base gap after CENTER-RT M2 timeout
 threshold,TASK_M2_BUFFER_PRE_CMD_EXTRA_DELAY_MS,value,120,ms,Core/Src/task.c,active-trial,V12 M2-specific quiet before task-level manual/return/tension buffered write
 threshold,TASK_M2_BUFFER_POST_CMD_EXTRA_DELAY_MS,value,80,ms,Core/Src/task.c,active-trial,V12 M2-specific quiet after successful task-level manual/return/tension buffered write
-threshold,EDGE_PATROL_CENTER_RESET_RETRY_MAX,value,1,attempts,Core/Src/task.c,active-safe,V12 one automatic safe recovery after patrol center-reset auto-zero failure
+threshold,EDGE_PATROL_CENTER_RESET_RETRY_MAX,value,1,attempts,Core/Src/task.c,superseded-by-v12-q3-order-retry3,V12 one automatic safe recovery after patrol center-reset auto-zero failure
 threshold,EDGE_PATROL_CENTER_RESET_RETRY_WAIT_MS,value,800,ms,Core/Src/task.c,active-safe,V12 stop-and-wait before motor return plus visual zero recovery
 failure,v11_patrol_abort,waypoint,14,count,serial v11,confirmed,CENTER-RT completed then visual center reset failed
 failure,v11_patrol_abort,phase,center_reset,phase,serial v11,confirmed,not a patrol segment motion failure
@@ -241,7 +245,44 @@ threshold,EDGE_PATROL_PROFILE_RT_PAYOUT,M1..M4,"[1.02,1.00,1.02,1.02]",gain,Core
 threshold,EDGE_PATROL_PROFILE_RB_TAKEUP,M1..M4,"[1.00,1.00,0.99,1.00]",gain,Core/Src/task.c,rolled-back,V13 RB-M4-HOLD takeup scale removed from current V12 code
 threshold,EDGE_PATROL_PROFILE_RB_PAYOUT,M1..M4,"[1.02,1.02,1.00,0.96]",gain,Core/Src/task.c,rolled-back,V13 RB-M4-HOLD payout scale removed from current V12 code
 threshold,EDGE_PATROL_PROFILE_LB,M1..M4,"[1.00,1.00,1.00,1.00]",gain,Core/Src/task.c,rolled-back,V13 neutral profile removed from current V12 code
-firmware,v12_boot_marker,value,Q2-CAL-JOG-v12-ZERO-RECOVER,version,Core/Src/main.c,active,current boot marker after rollback to V12 baseline
+firmware,v12_boot_marker,value,Q2-CAL-JOG-v12-ZERO-RECOVER-RETRY1,version,Core/Src/main.c,rolled-forward,previous boot marker after V12 rollback plus one-shot patrol move recovery
+firmware,v12_fit360_marker,value,Q2-CAL-JOG-v12-FIT360-RETRY1,version,Core/Src/main.c,rolled-back,disabled after loose-cable run; fitted seeds and vmax=360 are no longer active
+firmware,v12_corner_jobs_marker,value,Q2-CAL-JOG-v12-CORNER-JOBS-RESET1,version,Core/Src/main.c,active,current boot marker; each corner is an isolated center-to-corner job followed by motor return visual zero and encoder baseline reset
+calibration,v12_retry1_run13_LT_n1,soft_x,-17.26,cm,serial v12-retry1 run13 PATROL CAL,confirmed,n=1
+calibration,v12_retry1_run13_LT_n1,soft_y,13.72,cm,serial v12-retry1 run13 PATROL CAL,confirmed,n=1
+calibration,v12_retry1_run13_LT_n1,err_x,-0.40,cm,serial v12-retry1 run13 PATROL CAL,confirmed,n=1
+calibration,v12_retry1_run13_LT_n1,err_y,-0.50,cm,serial v12-retry1 run13 PATROL CAL,confirmed,n=1
+calibration,v12_retry1_run13_LT_n1,tilt_x,0.00,tilt,serial v12-retry1 run13 PATROL CAL,confirmed,n=1
+calibration,v12_retry1_run13_LT_n1,tilt_y,0.06,tilt,serial v12-retry1 run13 PATROL CAL,confirmed,n=1
+calibration,v12_retry1_run13_LT_n1,enc,"[4228,-7826,22449,18620]",0.1deg,serial v12-retry1 run13 PATROL CAL,confirmed,n=1
+fitted_target,current_LT,soft_x,-17.30,cm,confirmed serial soft-target fit,rolled-back,"FIT360 seed retained only as historical record; current code uses nominal soft target unless runtime CAL exists"
+fitted_target,current_LT,soft_y,14.90,cm,confirmed serial soft-target fit,rolled-back,"FIT360 seed retained only as historical record; current code uses nominal soft target unless runtime CAL exists"
+fitted_target,current_RT,soft_x,19.10,cm,confirmed serial soft-target fit,rolled-back,"FIT360 seed retained only as historical record; current code uses nominal soft target unless runtime CAL exists"
+fitted_target,current_RT,soft_y,18.30,cm,confirmed serial soft-target fit,rolled-back,"FIT360 seed retained only as historical record; current code uses nominal soft target unless runtime CAL exists"
+fitted_target,current_RB,soft_x,17.70,cm,serial v12-run8 PATROL CAL TABLE,rolled-back,"FIT360 seed retained only as historical record; current code uses nominal soft target unless runtime CAL exists"
+fitted_target,current_RB,soft_y,-16.47,cm,serial v12-run8 PATROL CAL TABLE,rolled-back,"FIT360 seed retained only as historical record; current code uses nominal soft target unless runtime CAL exists"
+fitted_target,current_LB,soft_x,-15.42,cm,serial v12-run8 PATROL CAL TABLE,rolled-back,"FIT360 seed retained only as historical record; current code uses nominal soft target unless runtime CAL exists"
+fitted_target,current_LB,soft_y,-13.82,cm,serial v12-run8 PATROL CAL TABLE,rolled-back,"FIT360 seed retained only as historical record; current code uses nominal soft target unless runtime CAL exists"
+threshold,EDGE_PATROL_USE_TARGET_SEED,value,0,boolean,Core/Src/task.c,active-v12,FIT360 fitted soft-target seeds disabled after loose-cable run
+patrol,route_order,current,"LB job -> center reset -> RT job -> center reset -> RB job -> center reset -> LT job -> center reset",order,Core/Src/task.c,active,default field order 1LB>2RT>3RB>4LT; old OUT/CENTER waypoints are not executed as patrol return path
+threshold,MOTOR_MODBUS_POLL_MODE,value,0,boolean,Core/Src/motor.c,rolled-back,TIM2 Modbus polling scheduler removed from current code
+threshold,MOTOR_MODBUS_POLL_TIMER_HZ,value,N/A,Hz,Core/Src/motor.c,rolled-back,TIM2 Modbus polling scheduler removed from current code
+threshold,MOTOR_MODBUS_MIN_FRAME_GAP_MS,value,N/A,ms,Core/Src/motor.c,rolled-back,current code uses path-specific write gaps instead of global polling slot
+threshold,MOTOR_MODBUS_PREWRITE_STATUS_POLL,value,0,boolean,Core/Src/motor.c,rolled-back,prewrite status poll removed from current code
+threshold,MOTOR_MODBUS_PREWRITE_POLL_RETRY_MAX,value,0,attempts,Core/Src/motor.c,rolled-back,prewrite status poll removed from current code
+threshold,MOTOR_MODBUS_PREWRITE_POLL_RETRY_MS,value,N/A,ms,Core/Src/motor.c,rolled-back,prewrite status poll removed from current code
+threshold,MOTOR_MODBUS_PREWRITE_POLL_SETTLE_MS,value,N/A,ms,Core/Src/motor.c,rolled-back,prewrite status poll removed from current code
+threshold,EDGE_PATROL_MOVE_RECOVERY_RETRY_MAX,value,1,attempts,Core/Src/task.c,superseded-by-v12-q3-order-retry3,ordinary patrol/fine move communication failure retries current corner job once after stop and rehome
+threshold,EDGE_PATROL_MOVE_RECOVERY_WAIT_MS,value,800,ms,Core/Src/task.c,active,wait before motor return and visual zero during move failure recovery
+failure,v12_run12_abort,waypoint,7,count,serial v12 run12,confirmed,CENTER-LT
+failure,v12_run12_abort,segment,3,count,serial v12 run12,confirmed,seg=3/3
+failure,v12_run12_abort,motor,3,index,serial v12 run12,confirmed,M3 buffered write timeout
+failure,v12_run12_abort,result,TIMEOUT,status,serial v12 run12,confirmed,func=0x10 rx_len=0 expect=8 elapsed=402ms trigger_attempted=0 attempted=0x07
+calibration,v12_run12_LT_n1,soft_x,-16.33,cm,serial v12 run12 PATROL CAL,confirmed,n=1
+calibration,v12_run12_LT_n1,soft_y,14.69,cm,serial v12 run12 PATROL CAL,confirmed,n=1
+calibration,v12_run12_LT_n1,err_x,0.60,cm,serial v12 run12 PATROL CAL,confirmed,n=1
+calibration,v12_run12_LT_n1,err_y,0.40,cm,serial v12 run12 PATROL CAL,confirmed,n=1
+calibration,v12_run12_LT_n1,enc,"[5361,-6639,22454,18794]",0.1deg,serial v12 run12 PATROL CAL,confirmed,n=1
 firmware,v13_boot_marker,value,Q2-CAL-JOG-v13-CORNER-TENSION,version,Core/Src/main.c,rolled-back,per-corner tension profile experiment removed from current V12 code
 target_mask,v12_run8,confirmed,0x0D,mask,serial v12 summary,confirmed,LT RB LB visually confirmed
 target_mask,v12_run8,unconfirmed,0x02,mask,serial v12 summary,confirmed,RT unconfirmed
@@ -274,8 +315,8 @@ field_observation,v12_RT,tension,tight_suspected,status,user observation,needs-c
 field_observation,v12_RB,tension,mixed,status,user observation,confirmed,RB M1 M2 slightly tight and M4 loose while return path suitable
 field_observation,v12_LB,tension,neutral,status,user observation,confirmed,LB cable length suitable and stable
 firmware,v14_boot_marker,value,Q2-CAL-JOG-v14-SAFE-RETRY,version,Core/Src/main.c,rolled-back,V14 safe retry removed after user requested V12 rollback
-threshold,EDGE_PATROL_MOVE_RECOVERY_MAX,value,1,attempts,Core/Src/task.c,rolled-back,V14 automatic patrol movement recovery removed from current V12 code
-threshold,EDGE_PATROL_MOVE_RECOVERY_WAIT_MS,value,800,ms,Core/Src/task.c,rolled-back,V14 patrol movement recovery wait removed from current V12 code
+threshold,V14_EDGE_PATROL_MOVE_RECOVERY_MAX,value,1,attempts,Core/Src/task.c,rolled-back,V14 automatic patrol movement recovery removed after V15 degraded LT
+threshold,V14_EDGE_PATROL_MOVE_RECOVERY_WAIT_MS,value,800,ms,Core/Src/task.c,rolled-back,V14 patrol movement recovery wait from removed experiment
 firmware,v15_boot_marker,value,Q2-CAL-JOG-v15-AUTO-RELAX,version,Core/Src/main.c,rolled-back,run10 showed LT degraded under retry-relax recovery loop
 threshold,EDGE_PATROL_RETRY_RELAX_ENABLE,value,0,boolean,Core/Src/task.c,removed,V15 temporary retry-relax removed from current code
 failure,v13_rt_abort,waypoint,11,count,serial v13,confirmed,RT failed at step 11 of 28
@@ -293,3 +334,75 @@ calibration,v13_LT_n1,soft_y,15.08,cm,serial v13 PATROL CAL,confirmed,n=1
 calibration,v13_LT_n1,err_x,0.20,cm,serial v13 PATROL CAL,confirmed,n=1
 calibration,v13_LT_n1,err_y,-0.50,cm,serial v13 PATROL CAL,confirmed,n=1
 calibration,v13_LT_n1,enc,"[5180,-8083,23398,20302]",0.1deg,serial v13 PATROL CAL,confirmed,n=1
+firmware,v12_corner1_lb_tight_marker,value,Q2-CAL-JOG-v12-CORNER1-LB-TIGHT1,version,Core/Src/main.c,active,current marker after user clarified corner1 is M1/LB
+firmware,v12_corner1_lb_tight_build,flash,96260,B,cmake build Debug,confirmed,FLASH 36.72 percent of 256KB
+firmware,v12_corner1_lb_tight_build,ram,5,KB,cmake build Debug,confirmed,RAM 10.42 percent of 48KB
+threshold,EDGE_PATROL_LB_TAKEUP_GAIN,value,1.02,gain,Core/Src/task.c,active-trial,LB/M1 corner only; slightly more take-up after user reported long loose cable
+threshold,EDGE_PATROL_LB_PAYOUT_GAIN,value,0.99,gain,Core/Src/task.c,active-trial,LB/M1 corner only; slightly less pay-out after user reported long loose cable
+field_observation,run15_corner1_LB,tension,loose,status,user observation,confirmed,corner1 is motor1-side LB and is last job in current route
+target_mask,run15_corner_jobs,confirmed,0x0F,mask,serial run15,confirmed,LT RT RB LB all visually confirmed
+target_mask,run15_corner_jobs,unconfirmed,0x00,mask,serial run15,confirmed,no unconfirmed corner
+calibration,run15_LT_n1,soft,"(-16.97,14.06)",cm,serial run15 PATROL CAL TABLE,confirmed,n=1
+calibration,run15_LT_n1,err,"(-0.30,-0.50)",cm,serial run15 PATROL CAL TABLE,confirmed,err=laser-circle
+calibration,run15_LT_n1,tilt,"(-0.07,0.54)",tilt,serial run15 PATROL CAL TABLE,confirmed,
+calibration,run15_LT_n1,enc,"[4617,-7441,22475,18704]",0.1deg,serial run15 PATROL CAL TABLE,confirmed,
+calibration,run15_RT_n1,soft,"(20.77,18.01)",cm,serial run15 PATROL CAL TABLE,confirmed,n=1
+calibration,run15_RT_n1,err,"(-0.20,0.00)",cm,serial run15 PATROL CAL TABLE,confirmed,err=laser-circle
+calibration,run15_RT_n1,tilt,"(0.05,0.07)",tilt,serial run15 PATROL CAL TABLE,confirmed,
+calibration,run15_RT_n1,enc,"[26368,20165,7765,-10160]",0.1deg,serial run15 PATROL CAL TABLE,confirmed,
+calibration,run15_RB_n1,soft,"(17.28,-15.40)",cm,serial run15 PATROL CAL TABLE,confirmed,n=1
+calibration,run15_RB_n1,err,"(-0.40,0.30)",cm,serial run15 PATROL CAL TABLE,confirmed,err=laser-circle
+calibration,run15_RB_n1,tilt,"(0.06,-0.04)",tilt,serial run15 PATROL CAL TABLE,confirmed,
+calibration,run15_RB_n1,enc,"[7381,-5852,-19556,-23688]",0.1deg,serial run15 PATROL CAL TABLE,confirmed,
+calibration,run15_LB_n1,soft,"(-15.18,-12.93)",cm,serial run15 PATROL CAL TABLE,confirmed,n=1
+calibration,run15_LB_n1,err,"(-0.10,0.10)",cm,serial run15 PATROL CAL TABLE,confirmed,err=laser-circle
+calibration,run15_LB_n1,tilt,"(0.00,-0.14)",tilt,serial run15 PATROL CAL TABLE,confirmed,
+calibration,run15_LB_n1,enc,"[-17270,-20334,6061,-3943]",0.1deg,serial run15 PATROL CAL TABLE,confirmed,
+firmware,v12_q3_order_pc2ok_retry3_marker,value,Q2-CAL-JOG-v12-Q3-ORDER-PC2OK-RETRY3,version,Core/Src/main.c,superseded-by-v12-q3-dma-lite1,OLED order menu PC2 OK keymap and retry max 3 retained in current functionality
+firmware,v12_q3_order_pc2ok_retry3_build,ram,5136,B,cmake build Debug,confirmed,RAM 10.45 percent of 48KB
+firmware,v12_q3_order_pc2ok_retry3_build,flash,99964,B,cmake build Debug,confirmed,FLASH 38.13 percent of 256KB
+firmware,v12_q3_dma_lite1_marker,value,Q2-CAL-JOG-v12-Q3-DMA-LITE1,version,Core/Src/main.c,superseded-by-v12-q3-dma-compact1,previous DMA receive and stable-lite patrol bus profile
+firmware,v12_q3_dma_lite1_build,ram,5136,B,cmake build Debug,confirmed,RAM 10.45 percent of 48KB
+firmware,v12_q3_dma_lite1_build,flash,100244,B,cmake build Debug,confirmed,FLASH 38.24 percent of 256KB
+firmware,v12_q3_dma_compact1_marker,value,Q2-CAL-JOG-v12-Q3-DMA-COMPACT1,version,Core/Src/main.c,superseded-by-v12-q3-oled-order1,previous DMA compact competition profile
+firmware,v12_q3_dma_compact1_build,ram,5136,B,cmake build Debug,confirmed,RAM 10.45 percent of 48KB
+firmware,v12_q3_dma_compact1_build,flash,86364,B,cmake build Debug,confirmed,FLASH 32.95 percent of 256KB
+firmware,v12_q3_dma_compact1_build,hex_sha256,BF3CFAE7D482E4A30A011E18942E389B19ABDAD2353B9D8FE8EB38801FDB09AC,sha256,build/Debug/CDPR_F103_HAL.hex,confirmed,default competition artifact
+logging,APP_COMPACT_LOG,value,1,boolean,Core/Src/task.c,active,USART1 normal output limited to state transitions and faults
+logging,MOTION_COMPACT_LOG,value,1,boolean,Core/Inc/motion.h,active,motion success details compiled out while failures remain
+logging,MANUAL_VISION_LOG,value,0,boolean,Core/Src/task.c,active,periodic USART1 vision log disabled; USART2 DMA reception remains active
+logging,EDGE_PATROL_NODE_LOG,value,0,boolean,Core/Src/task.c,active,waypoint detail log disabled
+logging,EDGE_PATROL_SEGMENT_LOG,value,0,boolean,Core/Src/task.c,active,segment BUS DATA log disabled
+logging,EDGE_PATROL_CAL_LOG,value,0,boolean,Core/Src/task.c,active,calibration table print disabled; in-memory visual learning retained
+threshold,EDGE_PATROL_CAL_ENCODER_READS,value,0,boolean,Core/Src/task.c,active,confirmed-corner telemetry position reads disabled
+threshold,MANUAL_RETURN_POST_ENCODER_READS,value,0,boolean,Core/Src/task.c,active,print-only position reads after return disabled
+threshold,MANUAL_RETURN_PRE_ENCODER_READS,value,4,requests_per_return,Core/Src/task.c,active-safety,mandatory current positions used to compute motor-zero return and guards
+threshold,EDGE_PATROL_CENTER_RESET_RETRY_MAX,value,3,attempts,Core/Src/task.c,active,patrol start corner reset and final center auto-zero recovery opportunities
+threshold,EDGE_PATROL_MOVE_RECOVERY_RETRY_MAX,value,3,attempts,Core/Src/task.c,active,corner-job movement communication failure recovery opportunities before abort
+ui,EDGE_PATROL_ORDER_MODE_PIN,value,KEY1_PA15,GPIO,Core/Src/task.c,active,Q3 OLED order mode switch; board KEY1 active low input pullup; JTAG disabled SWD kept
+ui,EDGE_PATROL_ORDER_KEYS,PC0_PC1_PC2_PC3,"prev_next_ok_back",mapping,Core/Src/task.c,active,PC0 previous PC1 next PC2 confirm PC3 back while KEY1/PA15 order menu active
+firmware,v12_q3_oled_order1_marker,value,Q2-CAL-JOG-v12-Q3-OLED-ORDER1,version,Core/Src/main.c,active,Q3 field-number mapping and OLED runtime recovery
+firmware,v12_q3_oled_order1_build,ram,5160,B,cmake build Debug,confirmed,RAM 10.50 percent of 48KB
+firmware,v12_q3_oled_order1_build,flash,87676,B,cmake build Debug,confirmed,FLASH 33.45 percent of 256KB
+firmware,v12_q3_oled_order1_build,hex_sha256,558B04879ED6F9F9322FE7BC7969EA7B6DEB117756F0900DD6D53BCD403E0426,sha256,build/Debug/CDPR_F103_HAL.hex,confirmed,default competition artifact
+patrol,route_order,current,"OLED-selectable 1LB/2RT/3RB/4LT",order,Core/Src/task.c,active,default 1LB>2RT>3RB>4LT; OLED labels and actual jobs share one mapping
+pin,USART1_TX,value,PA9,GPIO,user pin definition,confirmed,board CH340 debug output from STM32
+pin,USART1_RX,value,PA10,GPIO,user pin definition,confirmed,board CH340 debug input to STM32
+pin,USART2_TX,value,PA2,GPIO,user pin definition,confirmed,STM32 sends to MaixCAM
+pin,USART2_RX,value,PA3,GPIO,user pin definition,confirmed,STM32 receives from MaixCAM
+pin,USART3_TX,value,PB10,GPIO,user pin definition,confirmed,STM32 sends to RS485 module
+pin,USART3_RX,value,PB11,GPIO,user pin definition,confirmed,STM32 receives from RS485 module
+pin,RS485_DIR_RESERVED,value,PB12,GPIO,user pin definition,confirmed,reserved for manual direction RS485 module only
+pin,I2C1_SCL,value,PB6,GPIO,user pin definition,confirmed,OLED clock
+pin,I2C1_SDA,value,PB7,GPIO,user pin definition,confirmed,OLED data
+pin,KEY0,value,PC5,GPIO,user pin definition,confirmed,board key active low
+pin,KEY1,value,PA15,GPIO,user pin definition,confirmed,board key active low order mode switch
+pin,WK_UP,value,PA0,GPIO,user pin definition,confirmed,board key active high patrol start
+pin,KEY_EXT1,value,PC0,GPIO,user pin definition,confirmed,external key up in jog previous in order menu
+pin,KEY_EXT2,value,PC1,GPIO,user pin definition,confirmed,external key down in jog next in order menu
+pin,KEY_EXT3,value,PC2,GPIO,user pin definition,confirmed,external key left in jog confirm in order menu
+pin,KEY_EXT4,value,PC3,GPIO,user pin definition,confirmed,external key right in jog back in order menu
+pin,BUZZER,value,PB1,GPIO,user pin definition,confirmed,buzzer GPIO output
+pin,LED0,value,PA8,GPIO,user pin definition,confirmed,board LED0
+pin,SWDIO,value,PA13,GPIO,user pin definition,confirmed,must keep for SWD
+pin,SWCLK,value,PA14,GPIO,user pin definition,confirmed,must keep for SWD

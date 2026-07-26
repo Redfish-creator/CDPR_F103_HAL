@@ -2,6 +2,9 @@
 #include <string.h>
 
 static uint8_t g_oled_gram[OLED_PAGES][OLED_WIDTH];
+static uint8_t g_oled_initialized = 0U;
+static uint8_t g_oled_io_fault = 0U;
+static uint32_t g_oled_service_tick = 0U;
 
 /* ========== 6x8 点阵，只保留菜单会用到的字符 ========== */
 static const uint8_t FONT_SPACE[6] = {0x00,0x00,0x00,0x00,0x00,0x00};
@@ -119,7 +122,7 @@ static uint8_t OLED_WriteCmd(uint8_t cmd)
     return 1;
 }
 
-static void OLED_WriteData(uint8_t *data, uint16_t len)
+static uint8_t OLED_WriteData(uint8_t *data, uint16_t len)
 {
     uint8_t buf[17];
     uint16_t i = 0, n = 0;
@@ -134,36 +137,46 @@ static void OLED_WriteData(uint8_t *data, uint16_t len)
             i++;
             n++;
         }
-        HAL_I2C_Master_Transmit(&hi2c1, OLED_I2C_ADDR, buf, n + 1, 100);
+        if (HAL_I2C_Master_Transmit(&hi2c1, OLED_I2C_ADDR,
+                                    buf, n + 1, 100) != HAL_OK)
+        {
+            return 0U;
+        }
     }
+    return 1U;
 }
 
 void OLED_Init(void)
 {
+    uint8_t ok = 1U;
+
     HAL_Delay(100);
 
-    OLED_WriteCmd(0xAE); // display off
+    ok &= OLED_WriteCmd(0xAE); // display off
 
-    OLED_WriteCmd(0x20); OLED_WriteCmd(0x10); // page addressing mode
-    OLED_WriteCmd(0xB0);
-    OLED_WriteCmd(0xC8);
-    OLED_WriteCmd(0x00);
-    OLED_WriteCmd(0x10);
-    OLED_WriteCmd(0x40);
+    ok &= OLED_WriteCmd(0x20); ok &= OLED_WriteCmd(0x10); // page addressing mode
+    ok &= OLED_WriteCmd(0xB0);
+    ok &= OLED_WriteCmd(0xC8);
+    ok &= OLED_WriteCmd(0x00);
+    ok &= OLED_WriteCmd(0x10);
+    ok &= OLED_WriteCmd(0x40);
 
-    OLED_WriteCmd(0x81); OLED_WriteCmd(0x7F);
-    OLED_WriteCmd(0xA1);
-    OLED_WriteCmd(0xA6);
-    OLED_WriteCmd(0xA8); OLED_WriteCmd(0x3F);
-    OLED_WriteCmd(0xA4);
-    OLED_WriteCmd(0xD3); OLED_WriteCmd(0x00);
-    OLED_WriteCmd(0xD5); OLED_WriteCmd(0xF0);
-    OLED_WriteCmd(0xD9); OLED_WriteCmd(0x22);
-    OLED_WriteCmd(0xDA); OLED_WriteCmd(0x12);
-    OLED_WriteCmd(0xDB); OLED_WriteCmd(0x20);
-    OLED_WriteCmd(0x8D); OLED_WriteCmd(0x14);
-    OLED_WriteCmd(0xAF); // display on
+    ok &= OLED_WriteCmd(0x81); ok &= OLED_WriteCmd(0x7F);
+    ok &= OLED_WriteCmd(0xA1);
+    ok &= OLED_WriteCmd(0xA6);
+    ok &= OLED_WriteCmd(0xA8); ok &= OLED_WriteCmd(0x3F);
+    ok &= OLED_WriteCmd(0xA4);
+    ok &= OLED_WriteCmd(0xD3); ok &= OLED_WriteCmd(0x00);
+    ok &= OLED_WriteCmd(0xD5); ok &= OLED_WriteCmd(0xF0);
+    ok &= OLED_WriteCmd(0xD9); ok &= OLED_WriteCmd(0x22);
+    ok &= OLED_WriteCmd(0xDA); ok &= OLED_WriteCmd(0x12);
+    ok &= OLED_WriteCmd(0xDB); ok &= OLED_WriteCmd(0x20);
+    ok &= OLED_WriteCmd(0x8D); ok &= OLED_WriteCmd(0x14);
+    ok &= OLED_WriteCmd(0xAF); // display on
 
+    g_oled_initialized = 1U;
+    g_oled_io_fault = (ok != 0U) ? 0U : 1U;
+    g_oled_service_tick = HAL_GetTick();
     OLED_Clear();
     OLED_Refresh();
 }
@@ -176,13 +189,66 @@ void OLED_Clear(void)
 void OLED_Refresh(void)
 {
     uint8_t page;
+    uint8_t ok = 1U;
+
     for (page = 0; page < OLED_PAGES; page++)
     {
-        OLED_WriteCmd(0xB0 + page);
-        OLED_WriteCmd(0x00);
-        OLED_WriteCmd(0x10);
-        OLED_WriteData(g_oled_gram[page], OLED_WIDTH);
+        ok &= OLED_WriteCmd(0xB0 + page);
+        ok &= OLED_WriteCmd(0x00);
+        ok &= OLED_WriteCmd(0x10);
+        ok &= OLED_WriteData(g_oled_gram[page], OLED_WIDTH);
     }
+    if (ok == 0U)
+    {
+        g_oled_io_fault = 1U;
+    }
+}
+
+void OLED_Service(void)
+{
+    uint32_t now;
+    uint8_t ok = 1U;
+
+    if (g_oled_initialized == 0U)
+    {
+        return;
+    }
+
+    now = HAL_GetTick();
+    if ((now - g_oled_service_tick) < 1000U)
+    {
+        return;
+    }
+    g_oled_service_tick = now;
+
+    if (g_oled_io_fault != 0U)
+    {
+        (void)HAL_I2C_DeInit(&hi2c1);
+        HAL_Delay(2U);
+        if (HAL_I2C_Init(&hi2c1) != HAL_OK)
+        {
+            return;
+        }
+        OLED_Init();
+        return;
+    }
+
+    /*
+     * Motor power transients can reset an SSD1306 while the MCU keeps
+     * running. Reassert charge-pump/display-on and redraw the retained GRAM.
+     * This does not issue 0xAE, so a healthy display does not blink.
+     */
+    ok &= OLED_WriteCmd(0x8D);
+    ok &= OLED_WriteCmd(0x14);
+    ok &= OLED_WriteCmd(0xA4);
+    ok &= OLED_WriteCmd(0xA6);
+    ok &= OLED_WriteCmd(0xAF);
+    if (ok == 0U)
+    {
+        g_oled_io_fault = 1U;
+        return;
+    }
+    OLED_Refresh();
 }
 
 void OLED_ShowChar(uint8_t x, uint8_t page, char ch)

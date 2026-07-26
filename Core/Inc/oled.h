@@ -15,6 +15,7 @@
 void OLED_Init(void);
 void OLED_Clear(void);
 void OLED_Refresh(void);
+void OLED_Service(void);
 
 void OLED_ShowChar(uint8_t x, uint8_t page, char ch);
 void OLED_ShowString(uint8_t x, uint8_t page, const char *str);

@@ -24,5 +24,6 @@ void OLED_Menu_Init(void);
 void OLED_Menu_Clear(void);
 void OLED_Menu_ShowLine(uint8_t line, const char *str);
 void OLED_Menu_Refresh(void);
+void OLED_Menu_Service(void);
 
 #endif

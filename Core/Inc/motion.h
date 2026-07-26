@@ -4,6 +4,11 @@
 #include "motor.h"
 #include <stdint.h>
 
+/* Competition default: keep only faults in the USART1 motion log. */
+#ifndef MOTION_COMPACT_LOG
+#define MOTION_COMPACT_LOG 1U
+#endif
+
 /* ============================================================
  *  motion — 协调运动控制
  *  把"吊舱移到 (x,y)" 翻译成 4 电机的同步运动:
@@ -14,8 +19,20 @@
 #define MOTION_BASE_ACC          500     /* 加速加速度 RPM/s */
 #define MOTION_BASE_DEC          500     /* 减速加速度 RPM/s */
 #define MOTION_BASE_VMAX         1000    /* 最大速度 0.1RPM (=100.0RPM) */
+#define MOTION_PATROL_BASE_VMAX  300     /* 巡检主导电机速度 0.1RPM (=30.0RPM) */
 #define MOTION_MIN_SCALE         0.05f   /* 速度缩放下限, 防止过慢/为0 */
 #define MOTION_REACH_TIMEOUT_MS  10000   /* 等到位超时 */
+
+/*
+ * Stable patrol profile: historical DMA logs contain substantially more
+ * no-byte 0x10 failures at M2, while M2 was always the second buffered write.
+ * Queue M2 first after the long inter-segment quiet period. All four commands
+ * are still buffered and are executed only by the same broadcast trigger, so
+ * this changes bus transaction order, not the commanded motion.
+ */
+#ifndef MOTION_PATROL_M2_FIRST
+#define MOTION_PATROL_M2_FIRST   1U
+#endif
 
 typedef struct {
     uint32_t sequence;
@@ -34,7 +51,9 @@ typedef struct {
     uint8_t trigger_attempted;
     uint8_t completed;
     uint8_t failed_motor;
+    uint8_t bus_slot[4];
     mb_result_t motor_result[4];
+    motor_transaction_summary_t motor_diag[4];
     mb_result_t trigger_result;
     uint32_t estimated_move_ms;
 } motion_segment_report_t;

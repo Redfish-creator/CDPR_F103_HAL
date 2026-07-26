@@ -357,7 +357,7 @@ static void VisionDebug_Task(void)
 int main(void)
 {
   /* USER CODE BEGIN 1 */
-
+  uint32_t reset_flags = RCC->CSR;
   /* USER CODE END 1 */
 
   /* MCU Configuration--------------------------------------------------------*/
@@ -386,7 +386,16 @@ int main(void)
   MX_TIM2_Init();
   /* USER CODE BEGIN 2 */
   setvbuf(stdout, NULL, _IONBF, 0);
-  printf("\r\n[BOOT] CDPR backup-current app start Q2-CAL-JOG-v12-ZERO-RECOVER\r\n");
+  printf("\r\n[BOOT] CDPR backup-current app start Q2-CAL-JOG-v12-Q3-MB-DIAG2\r\n");
+  printf("RESET csr=0x%08lX pin=%u por=%u sw=%u iwdg=%u wwdg=%u lpwr=%u\r\n",
+         (unsigned long)reset_flags,
+         (unsigned int)((reset_flags & RCC_CSR_PINRSTF) != 0U),
+         (unsigned int)((reset_flags & RCC_CSR_PORRSTF) != 0U),
+         (unsigned int)((reset_flags & RCC_CSR_SFTRSTF) != 0U),
+         (unsigned int)((reset_flags & RCC_CSR_IWDGRSTF) != 0U),
+         (unsigned int)((reset_flags & RCC_CSR_WWDGRSTF) != 0U),
+         (unsigned int)((reset_flags & RCC_CSR_LPWRRSTF) != 0U));
+  __HAL_RCC_CLEAR_RESET_FLAGS();
   vision_init();      /* 要用视觉才加; 需 USART2+DMA 已初始化 */
 #if APP_MOTOR_DEBUG_TEST
   MotorTest_Init();
