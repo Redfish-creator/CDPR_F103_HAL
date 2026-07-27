@@ -146,7 +146,7 @@ static uint8_t OLED_WriteData(uint8_t *data, uint16_t len)
     return 1U;
 }
 
-void OLED_Init(void)
+static uint8_t OLED_ControllerInit(void)
 {
     uint8_t ok = 1U;
 
@@ -173,6 +173,13 @@ void OLED_Init(void)
     ok &= OLED_WriteCmd(0xDB); ok &= OLED_WriteCmd(0x20);
     ok &= OLED_WriteCmd(0x8D); ok &= OLED_WriteCmd(0x14);
     ok &= OLED_WriteCmd(0xAF); // display on
+
+    return ok;
+}
+
+void OLED_Init(void)
+{
+    uint8_t ok = OLED_ControllerInit();
 
     g_oled_initialized = 1U;
     g_oled_io_fault = (ok != 0U) ? 0U : 1U;
@@ -229,7 +236,21 @@ void OLED_Service(void)
         {
             return;
         }
-        OLED_Init();
+
+        /*
+         * Reinitialize only the controller.  Calling OLED_Init() here used
+         * to clear g_oled_gram, so one transient I2C error permanently made
+         * the active order page blank until another UI event happened.
+         */
+        ok = OLED_ControllerInit();
+        g_oled_initialized = 1U;
+        g_oled_io_fault = (ok != 0U) ? 0U : 1U;
+        g_oled_service_tick = HAL_GetTick();
+        if (ok == 0U)
+        {
+            return;
+        }
+        OLED_Refresh();
         return;
     }
 

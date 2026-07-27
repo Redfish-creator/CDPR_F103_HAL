@@ -1,0 +1,31 @@
+capture_date,firmware,run_section,event,seq,name,step,segment,motor,slot,transaction_id,result,func,reg,qty,rx_len,expect_len,raw_len,offset,elapsed_ms,tx_us,first_us,last_us,uart_error,vision_err_x_cm,vision_err_y_cm,tilt_x,tilt_y,detail
+2026-07-27,Q2-CAL-JOG-v12-Q3-MB-DIAG2,preceding_run_tail,patrol_complete,,,,,,,,OK,,,,,,,,,,,,,,,,,"confirmed=0x0F; unconfirmed=0x00; four edge circles visited; center refreshed"
+2026-07-27,Q2-CAL-JOG-v12-Q3-MB-DIAG2,new_run,patrol_start,,,,,,,,OK,,,,,,,,,,,,,,,,,"order=4LT>2RT>3RB>1LB; target=16.0cm; rx=DMA_SCAN; log=COMPACT; enc=RETURN_ONLY"
+2026-07-27,Q2-CAL-JOG-v12-Q3-MB-DIAG2,new_run,inventory_version,,,1,,,44,OK,0x04,0x0010,2,9,9,9,0,2,700,1173,1867,0x00000000,,,,,"fw_raw=107; hw_raw=0x230A; series_code=2; type=42; type_code=3; hw_ver=10"
+2026-07-27,Q2-CAL-JOG-v12-Q3-MB-DIAG2,new_run,inventory_vbus,,,1,,,45,OK,0x04,0x0024,1,7,7,7,0,1,704,1163,1685,0x00000000,,,,,vbus_mV=23906
+2026-07-27,Q2-CAL-JOG-v12-Q3-MB-DIAG2,new_run,inventory_heartbeat,,,1,,,46,REJECTED,0x04,0x0016,1,5,7,5,0,1,702,1164,1510,0x00000000,,,,,"exception=0x01; valid exception frame 01 84 01 82 C0"
+2026-07-27,Q2-CAL-JOG-v12-Q3-MB-DIAG2,new_run,inventory_state,,,1,,,47,OK,0x04,0x0050,1,7,7,7,0,1,704,1174,1696,0x00000000,,,,,state=0x03
+2026-07-27,Q2-CAL-JOG-v12-Q3-MB-DIAG2,new_run,inventory_version,,,2,,,48,OK,0x04,0x0010,2,9,9,9,0,2,702,1208,1906,0x00000000,,,,,"fw_raw=107; hw_raw=0x230A; series_code=2; type=42; type_code=3; hw_ver=10"
+2026-07-27,Q2-CAL-JOG-v12-Q3-MB-DIAG2,new_run,inventory_vbus,,,2,,,49,OK,0x04,0x0024,1,7,7,7,0,1,703,1266,1788,0x00000000,,,,,vbus_mV=23586
+2026-07-27,Q2-CAL-JOG-v12-Q3-MB-DIAG2,new_run,inventory_heartbeat,,,2,,,50,REJECTED,0x04,0x0016,1,5,7,5,0,1,769,1264,1613,0x00000000,,,,,"exception=0x01; valid exception frame 02 84 01 72 C0"
+2026-07-27,Q2-CAL-JOG-v12-Q3-MB-DIAG2,new_run,inventory_state,,,2,,,51,OK,0x04,0x0050,1,7,7,7,0,1,703,1180,1701,0x00000000,,,,,state=0x03
+2026-07-27,Q2-CAL-JOG-v12-Q3-MB-DIAG2,new_run,inventory_version,,,3,,,52,OK,0x04,0x0010,2,9,9,9,0,2,702,1197,1895,0x00000000,,,,,"fw_raw=107; hw_raw=0x230A; series_code=2; type=42; type_code=3; hw_ver=10"
+2026-07-27,Q2-CAL-JOG-v12-Q3-MB-DIAG2,new_run,inventory_vbus,,,3,,,53,OK,0x04,0x0024,1,7,7,7,0,1,698,1200,1722,0x00000000,,,,,vbus_mV=23517
+2026-07-27,Q2-CAL-JOG-v12-Q3-MB-DIAG2,new_run,inventory_heartbeat,,,3,,,54,REJECTED,0x04,0x0016,1,5,7,5,0,1,705,1251,1600,0x00000000,,,,,"exception=0x01; valid exception frame 03 84 01 23 00"
+2026-07-27,Q2-CAL-JOG-v12-Q3-MB-DIAG2,new_run,inventory_state,,,3,,,55,OK,0x04,0x0050,1,7,7,7,0,1,699,1169,1689,0x00000000,,,,,state=0x03
+2026-07-27,Q2-CAL-JOG-v12-Q3-MB-DIAG2,new_run,inventory_version,,,4,,,56,OK,0x04,0x0010,2,9,9,9,0,2,699,1187,1886,0x00000000,,,,,"fw_raw=200; hw_raw=0x230A; series_code=2; type=42; type_code=3; hw_ver=10"
+2026-07-27,Q2-CAL-JOG-v12-Q3-MB-DIAG2,new_run,inventory_vbus,,,4,,,57,OK,0x04,0x0024,1,7,7,7,0,1,699,1197,1717,0x00000000,,,,,vbus_mV=23902
+2026-07-27,Q2-CAL-JOG-v12-Q3-MB-DIAG2,new_run,inventory_heartbeat,,,4,,,58,REJECTED,0x04,0x0016,1,5,7,5,0,1,707,1198,1548,0x00000000,,,,,"exception=0x01; valid exception frame 04 84 01 92 C1"
+2026-07-27,Q2-CAL-JOG-v12-Q3-MB-DIAG2,new_run,inventory_state,,,4,,,59,OK,0x04,0x0050,1,7,7,7,0,1,700,1199,1725,0x00000000,,,,,state=0x03
+2026-07-27,Q2-CAL-JOG-v12-Q3-MB-DIAG2,new_run,inventory_end,,,,,,,,OK,,,,,,,,,,,,,,,,,patrol_safe=1
+2026-07-27,Q2-CAL-JOG-v12-Q3-MB-DIAG2,new_run,buffer_write_failure,17,LT-APP,3/16,5/5,1,2,120,TIMEOUT,0x10,0x00F0,5,0,8,0,65535,402,1897,0,0,0x00000000,11.70,-1.30,-1.00,0.54,"no RX byte; M2 OK; M3/M4 skipped; tx=01 10 00 F0 00 05 0A 00 00 00 66 01 78 00 00 02 01 96 75"
+2026-07-27,Q2-CAL-JOG-v12-Q3-MB-DIAG2,new_run,recovery_result,17,LT-APP,3/16,5/5,,,,OK,,,,,,,,,,,,,,,,,"center return and visual zero succeeded; LT restart attempt=1/3"
+2026-07-27,Q2-CAL-JOG-v12-Q3-MB-DIAG2,new_run,buffer_write_failure,26,LT-APP,3/16,3/5,4,4,190,TIMEOUT,0x10,0x00F0,5,0,8,0,65535,402,1875,0,0,0x00000000,-10.60,15.90,0.87,-1.00,"no RX byte; M1/M2/M3 OK; tx=04 10 00 F0 00 05 0A 00 00 00 F2 03 78 00 00 02 01 51 0F"
+2026-07-27,Q2-CAL-JOG-v12-Q3-MB-DIAG2,new_run,recovery_result,26,LT-APP,3/16,3/5,,,,OK,,,,,,,,,,,,,,,,,"center return and visual zero succeeded; LT restart attempt=2/3"
+2026-07-27,Q2-CAL-JOG-v12-Q3-MB-DIAG2,new_run,corner_confirmed,47,LT,4/16,1/1,,,,OK,,,,,,,,,,,,,0.60,-0.40,-0.25,0.39,LT confirmed after second restart
+2026-07-27,Q2-CAL-JOG-v12-Q3-MB-DIAG2,new_run,buffer_write_failure,67,RT,8/16,1/1,4,4,438,TIMEOUT,0x10,0x00F0,5,0,8,0,65535,402,1871,0,0,0x00000000,-3.70,-0.60,0.53,0.24,"no RX byte; M1/M2/M3 OK; fine move; tx=04 10 00 F0 00 05 0A 00 01 01 2C 01 A8 00 00 02 01 63 6E"
+2026-07-27,Q2-CAL-JOG-v12-Q3-MB-DIAG2,new_run,recovery_result,67,RT,8/16,1/1,,,,OK,,,,,,,,,,,,,,,,,"center return and visual zero succeeded; RT restart attempt=1/3"
+2026-07-27,Q2-CAL-JOG-v12-Q3-MB-DIAG2,new_run,buffer_write_failure,74,RT-APP,7/16,1/5,3,3,497,TIMEOUT,0x10,0x00F0,5,0,8,0,65535,402,1907,0,0,0x00000000,9.10,7.30,-0.78,-0.83,"no RX byte; M2/M1 OK; M4 skipped; tx=03 10 00 F0 00 05 0A 00 00 00 5D 01 69 00 00 02 01 41 D5"
+2026-07-27,Q2-CAL-JOG-v12-Q3-MB-DIAG2,new_run,return_write_failure,74,RT-APP,7/16,1/5,4,,513,TIMEOUT,0x10,0x00F0,5,0,8,0,65535,402,1868,0,0,0x00000000,9.10,7.30,-0.78,-0.83,"no RX byte during motor return; tx=04 10 00 F0 00 05 0A 00 00 00 4C 05 B3 00 00 02 01 AA B2"
+2026-07-27,Q2-CAL-JOG-v12-Q3-MB-DIAG2,new_run,patrol_abort,74,RT-APP,7/16,1/5,,,,TIMEOUT,,,,,,,,,,,,,,,,,"corner RT recovery failed because rehome write to M4 timed out; patrol aborted at corner job 2/4"
+2026-07-27,Q2-CAL-JOG-v12-Q3-MB-DIAG2,new_run,normal_write_timing,,,,,,,,OK,0x10,0x00F0,5,8,8,8,0,2-3,1651-1660,about_2150-2295,about_2759-2905,0x00000000,,,,,"representative range from successful MBTX rows in supplied capture; exact rows remain in source serial transcript"

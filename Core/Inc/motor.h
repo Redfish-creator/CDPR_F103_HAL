@@ -25,6 +25,18 @@
 #define MOTOR_MODBUS_RX_IMPL MOTOR_MODBUS_RX_DMA_SCAN
 #endif
 
+/* ---- USART3 Modbus transmit implementation switch ----
+ * DMA_CONTIG drives USART3_TX through its fixed STM32F103 DMA1 Channel 2
+ * mapping.  The transfer is hardware paced so a long ISR cannot introduce a
+ * gap between bytes of a Modbus-RTU request.  HAL_BLOCKING is retained only
+ * as a controlled comparison fallback.
+ */
+#define MOTOR_MODBUS_TX_DMA_CONTIG   0U
+#define MOTOR_MODBUS_TX_HAL_BLOCKING 1U
+#ifndef MOTOR_MODBUS_TX_IMPL
+#define MOTOR_MODBUS_TX_IMPL MOTOR_MODBUS_TX_DMA_CONTIG
+#endif
+
 /* ---- 寄存器地址 ---- */
 #define REG_ENABLE       0x00E0   /* 使能 */
 #define REG_TRAP_POS     0x00F6   /* 梯形曲线位置模式(X固件), 7寄存器 */
@@ -131,6 +143,7 @@ typedef struct {
 uint16_t       modbus_crc16(const uint8_t *data, uint16_t len);
 const char    *motor_result_str(mb_result_t r);
 const char    *motor_rx_mode_name(void);
+const char    *motor_tx_mode_name(void);
 uint8_t        motor_cable_direction(uint8_t addr, uint8_t cable_action);
 void           motor_get_last_transaction_diag(motor_transaction_diag_t *diag);
 void           motor_get_last_transaction_summary(motor_transaction_summary_t *summary);

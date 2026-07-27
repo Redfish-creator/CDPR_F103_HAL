@@ -156,10 +156,24 @@ static const float PT_Y[ROUTE_POINT_NUM] = { +15.0f, +15.0f, -15.0f, -15.0f,  0.
 #define EDGE_PATROL_SEGMENT_LOG   0U
 #endif
 #ifndef EDGE_PATROL_BUS_DIAG_LOG
-/* Dedicated field capture: no extra RS485 reads are added per segment.
- * The already executed four buffered writes are summarized over USART1 only
- * after the move, so this evidence cannot steal USART3 response bytes. */
-#define EDGE_PATROL_BUS_DIAG_LOG  1U
+/*
+ * Competition profile: suppress per-motor success dumps.  They make every
+ * waypoint wait on a large USART1 print burst without adding control value.
+ * A failed write still emits the complete motor transaction diagnostic before
+ * recovery, so the evidence needed for a fault remains available.
+ */
+#define EDGE_PATROL_BUS_DIAG_LOG  0U
+#endif
+#ifndef MOTOR_INVENTORY_DIAG_LOG
+/* Per-request probe dumps are retained behind this switch.  The normal
+ * profile emits one useful identity/state line per motor and full data only
+ * when a probe actually fails. */
+#define MOTOR_INVENTORY_DIAG_LOG   0U
+#endif
+#ifndef MOTOR_INVENTORY_PROBE_HEARTBEAT
+/* The installed X42 firmware replies 0x84/0x01 to 0x0016, so do not issue an
+ * intentionally unsupported request before every patrol. */
+#define MOTOR_INVENTORY_PROBE_HEARTBEAT 0U
 #endif
 #ifndef EDGE_PATROL_CAL_ENCODER_READS
 #define EDGE_PATROL_CAL_ENCODER_READS 0U
@@ -236,6 +250,7 @@ typedef struct {
     uint8_t stable_level;
     uint8_t last_sample;
     uint8_t debounce_cnt;
+    uint8_t pressed_event;
 } ManualKeyFilter_t;
 
 typedef struct {
@@ -313,10 +328,7 @@ static ManualKeyFilter_t s_edge_patrol_key;
 static ManualKeyFilter_t s_edge_order_mode_key;
 static uint8_t s_edge_patrol_key_last = 0U;
 static uint8_t s_edge_order_mode_key_last = 0U;
-static uint8_t s_edge_order_up_last = 0U;
-static uint8_t s_edge_order_down_last = 0U;
-static uint8_t s_edge_order_left_last = 0U;
-static uint8_t s_edge_order_right_last = 0U;
+static uint8_t s_edge_order_raw_last = 0U;
 static uint8_t s_edge_order_menu_active = 0U;
 static uint8_t s_edge_order_edit_count = 0U;
 static uint8_t s_edge_order_cursor = 0U;
@@ -325,7 +337,7 @@ static uint8_t s_edge_order_edit[EDGE_PATROL_ORDER_COUNT] = {
     EDGE_PATROL_ORDER_NONE, EDGE_PATROL_ORDER_NONE
 };
 static uint8_t s_edge_patrol_order[EDGE_PATROL_ORDER_COUNT] = {
-    3U, 1U, 2U, 0U
+    0U, 1U, 2U, 3U
 };
 static uint8_t s_manual_return_last_skipped = 0U;
 static EdgePatrolCal_t s_edge_patrol_cal[5];
@@ -414,6 +426,8 @@ static mb_result_t Task_MotorMovePosBufferRetry(uint8_t id, uint8_t dir,
                                                 const char *tag);
 static void ManualKey_Update(ManualKeyFilter_t *kf, uint8_t raw_pressed);
 static uint8_t ManualKey_IsPressed(const ManualKeyFilter_t *kf);
+static uint8_t ManualKey_TakePressedEvent(ManualKeyFilter_t *kf);
+static void ManualKey_ClearPressedEvent(ManualKeyFilter_t *kf);
 static void Task_ManualKeysInit(void);
 static void Task_ManualKeysService(void);
 static uint8_t Task_EdgePatrolKeyEdge(void);
@@ -422,6 +436,7 @@ static uint8_t Task_KeyPressedEdge(const ManualKeyFilter_t *kf,
                                    uint8_t *last);
 static void Task_EdgeOrderInitDefault(void);
 static void Task_EdgeOrderSyncKeyEdges(void);
+static uint8_t Task_EdgeOrderRawKeyMask(void);
 static void Task_EdgeOrderEnter(void);
 static void Task_EdgeOrderExit(void);
 static uint8_t Task_EdgeOrderMenuService(void);
@@ -648,6 +663,12 @@ static void ManualKey_Update(ManualKeyFilter_t *kf, uint8_t raw_pressed)
     if (kf->debounce_cnt >= 2U) {
         if (kf->stable_level != raw_pressed) {
             kf->stable_level = raw_pressed;
+            if (raw_pressed != 0U) {
+                /* Keep a debounced press until the currently active UI
+                 * consumes it.  This is the event model used by the
+                 * reference route_menu.c. */
+                kf->pressed_event = 1U;
+            }
         }
     }
 }
@@ -655,6 +676,22 @@ static void ManualKey_Update(ManualKeyFilter_t *kf, uint8_t raw_pressed)
 static uint8_t ManualKey_IsPressed(const ManualKeyFilter_t *kf)
 {
     return (kf->stable_level != 0U) ? 1U : 0U;
+}
+
+static uint8_t ManualKey_TakePressedEvent(ManualKeyFilter_t *kf)
+{
+    if (kf == NULL || kf->pressed_event == 0U) {
+        return 0U;
+    }
+    kf->pressed_event = 0U;
+    return 1U;
+}
+
+static void ManualKey_ClearPressedEvent(ManualKeyFilter_t *kf)
+{
+    if (kf != NULL) {
+        kf->pressed_event = 0U;
+    }
 }
 
 static void Task_ManualKeysInit(void)
@@ -667,10 +704,6 @@ static void Task_ManualKeysInit(void)
     memset(&s_edge_order_mode_key, 0, sizeof(s_edge_order_mode_key));
     s_edge_patrol_key_last = 0U;
     s_edge_order_mode_key_last = 0U;
-    s_edge_order_up_last = 0U;
-    s_edge_order_down_last = 0U;
-    s_edge_order_left_last = 0U;
-    s_edge_order_right_last = 0U;
     s_manual_key_tick = HAL_GetTick();
     s_manual_jog_tick = s_manual_key_tick;
     s_manual_jog_done_tick = s_manual_key_tick;
@@ -870,11 +903,32 @@ static void Task_EdgeOrderInitDefault(void)
 
 static void Task_EdgeOrderSyncKeyEdges(void)
 {
-    s_edge_order_up_last = ManualKey_IsPressed(&s_manual_key_up);
-    s_edge_order_down_last = ManualKey_IsPressed(&s_manual_key_down);
-    s_edge_order_left_last = ManualKey_IsPressed(&s_manual_key_left);
-    s_edge_order_right_last = ManualKey_IsPressed(&s_manual_key_right);
+    /* Do not let a press made before KEY1 opened the page act on a freshly
+     * opened route editor.  Later debounced presses are latched and consumed
+     * by the menu itself. */
+    ManualKey_ClearPressedEvent(&s_manual_key_up);
+    ManualKey_ClearPressedEvent(&s_manual_key_down);
+    ManualKey_ClearPressedEvent(&s_manual_key_left);
+    ManualKey_ClearPressedEvent(&s_manual_key_right);
     s_edge_patrol_key_last = ManualKey_IsPressed(&s_edge_patrol_key);
+    s_edge_order_raw_last = Task_EdgeOrderRawKeyMask();
+}
+
+/*
+ * Menu-only wiring diagnostic.  A transition is printed only while the order
+ * page is open, so it adds at most one USART1 line on press and one on
+ * release.  It lets the field distinguish a GPIO/wiring problem from a
+ * debounced menu-state problem without adding any USART3 traffic.
+ */
+static uint8_t Task_EdgeOrderRawKeyMask(void)
+{
+    uint8_t mask = 0U;
+
+    if (HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_0) == GPIO_PIN_RESET) mask |= 0x01U;
+    if (HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_1) == GPIO_PIN_RESET) mask |= 0x02U;
+    if (HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_2) == GPIO_PIN_RESET) mask |= 0x04U;
+    if (HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_3) == GPIO_PIN_RESET) mask |= 0x08U;
+    return mask;
 }
 
 static const char *Task_EdgeOrderSlotName(uint8_t idx)
@@ -888,37 +942,52 @@ static const char *Task_EdgeOrderSlotName(uint8_t idx)
     return "?";
 }
 
-static void Task_EdgeOrderLoadActive(void)
+static void Task_EdgeOrderBeginEdit(void)
 {
     uint8_t total = Task_EdgePatrolJobCount();
+    uint8_t first;
 
     if (total == 0U) {
         Task_EdgeOrderResetEdit();
         return;
     }
 
-    for (uint8_t i = 0U; i < EDGE_PATROL_ORDER_COUNT; i++) {
-        uint8_t idx = s_edge_patrol_order[i];
-        if (idx >= total) {
-            idx = (uint8_t)(i % total);
-        }
-        s_edge_order_edit[i] = idx;
+    /*
+     * Always enter at step 1.  The former implementation loaded all four
+     * active slots and immediately declared the menu READY; PC0/PC1/PC2 were
+     * then intentionally ignored until PC3 had been pressed.  With compact
+     * logging that looked exactly like dead keys at the field console.
+     *
+     * Keep the committed order unchanged until all four new slots are
+     * confirmed, and use its first point only as the initial cursor.
+     */
+    first = s_edge_patrol_order[0];
+    if (first >= total) {
+        first = 0U;
     }
-
-    s_edge_order_edit_count = EDGE_PATROL_ORDER_COUNT;
-    s_edge_order_cursor = s_edge_order_edit[0];
+    Task_EdgeOrderResetEdit();
+    s_edge_order_cursor = first;
 }
 
 static void Task_EdgeOrderDraw(void)
 {
-    char line[24];
+    char line[28];
+    char active_order[22];
     uint8_t ready = (s_edge_order_edit_count >= EDGE_PATROL_ORDER_COUNT) ? 1U : 0U;
 
+    Task_EdgePatrolFormatOrder(s_edge_patrol_order,
+                               EDGE_PATROL_ORDER_COUNT,
+                               active_order, sizeof(active_order));
     OLED_Menu_Clear();
     OLED_Menu_ShowLine(0, "Q3 PATROL ORDER");
+    /* OLD is the currently committed route.  It is deliberately separate
+     * from the blank NEW slots below: opening KEY1 must never imply that the
+     * old route has already been re-confirmed. */
+    snprintf(line, sizeof(line), "OLD:%s", active_order);
+    OLED_Menu_ShowLine(1, line);
 
     if (ready != 0U) {
-        OLED_Menu_ShowLine(1, "ORDER READY");
+        OLED_Menu_ShowLine(2, "SAVED PA0 START");
     } else {
         const char *cursor = "?";
 
@@ -926,11 +995,11 @@ static void Task_EdgeOrderDraw(void)
             cursor = s_edge_patrol_point_labels[s_edge_order_cursor];
         }
 
-        snprintf(line, sizeof(line), "EDIT %u/%u CUR:%s",
+        snprintf(line, sizeof(line), "NEW %u/%u CUR:%s",
                  (unsigned int)(s_edge_order_edit_count + 1U),
                  (unsigned int)EDGE_PATROL_ORDER_COUNT,
                  cursor);
-        OLED_Menu_ShowLine(1, line);
+        OLED_Menu_ShowLine(2, line);
     }
 
     for (uint8_t i = 0U; i < EDGE_PATROL_ORDER_COUNT; i++) {
@@ -943,15 +1012,13 @@ static void Task_EdgeOrderDraw(void)
                  mark,
                  (unsigned int)(i + 1U),
                  Task_EdgeOrderSlotName(s_edge_order_edit[i]));
-        OLED_Menu_ShowLine((uint8_t)(2U + i), line);
+        OLED_Menu_ShowLine((uint8_t)(3U + i), line);
     }
 
     if (ready != 0U) {
-        OLED_Menu_ShowLine(6, "PC3 EDIT  PA0 START");
-        OLED_Menu_ShowLine(7, "KEY1 EXIT");
+        OLED_Menu_ShowLine(7, "PC3 EDIT KEY1 EXIT");
     } else {
-        OLED_Menu_ShowLine(6, "PC0 PRE PC1 NEXT");
-        OLED_Menu_ShowLine(7, "PC2 OK  PC3 BACK");
+        OLED_Menu_ShowLine(7, "0/1 SEL 2OK 3BACK");
     }
 
     OLED_Menu_Refresh();
@@ -963,8 +1030,7 @@ static void Task_EdgeOrderConfirm(void)
     char order[22];
 
     if (s_edge_order_edit_count >= EDGE_PATROL_ORDER_COUNT) {
-        TASK_TRACE("PATROL order key PC2 OK ignored: order ready; "
-                   "PA0 start or PC3 back to edit\r\n");
+        printf("ORDER key PC2 ignored: READY; PA0 start or PC3 edit\r\n");
         return;
     }
     if (Task_EdgeOrderPointUsed(s_edge_order_cursor,
@@ -979,11 +1045,11 @@ static void Task_EdgeOrderConfirm(void)
     }
 
     s_edge_order_edit[s_edge_order_edit_count] = s_edge_order_cursor;
-    TASK_TRACE("PATROL order key PC2 OK step=%u/%u select=%s\r\n",
-               (unsigned int)(s_edge_order_edit_count + 1U),
-               (unsigned int)EDGE_PATROL_ORDER_COUNT,
-               (s_edge_order_cursor < Task_EdgePatrolJobCount()) ?
-               s_edge_patrol_point_labels[s_edge_order_cursor] : "?");
+    printf("ORDER key PC2 OK step=%u/%u select=%s\r\n",
+           (unsigned int)(s_edge_order_edit_count + 1U),
+           (unsigned int)EDGE_PATROL_ORDER_COUNT,
+           (s_edge_order_cursor < Task_EdgePatrolJobCount()) ?
+           s_edge_patrol_point_labels[s_edge_order_cursor] : "?");
     s_edge_order_edit_count++;
 
     if (s_edge_order_edit_count >= EDGE_PATROL_ORDER_COUNT) {
@@ -1006,18 +1072,18 @@ static void Task_EdgeOrderBack(void)
 {
     if (s_edge_order_edit_count == 0U) {
         s_edge_order_cursor = 0U;
-        TASK_TRACE("PATROL order key PC3 BACK ignored: at first step\r\n");
+        printf("ORDER key PC3 BACK: already at step=1/4; KEY1 exits\r\n");
         return;
     }
 
     s_edge_order_edit_count--;
     s_edge_order_cursor = s_edge_order_edit[s_edge_order_edit_count];
     s_edge_order_edit[s_edge_order_edit_count] = EDGE_PATROL_ORDER_NONE;
-    TASK_TRACE("PATROL order key PC3 BACK to step=%u/%u cursor=%s\r\n",
-               (unsigned int)(s_edge_order_edit_count + 1U),
-               (unsigned int)EDGE_PATROL_ORDER_COUNT,
-               (s_edge_order_cursor < Task_EdgePatrolJobCount()) ?
-               s_edge_patrol_point_labels[s_edge_order_cursor] : "?");
+    printf("ORDER key PC3 BACK step=%u/%u cursor=%s\r\n",
+           (unsigned int)(s_edge_order_edit_count + 1U),
+           (unsigned int)EDGE_PATROL_ORDER_COUNT,
+           (s_edge_order_cursor < Task_EdgePatrolJobCount()) ?
+           s_edge_patrol_point_labels[s_edge_order_cursor] : "?");
 }
 
 static void Task_EdgeOrderEnter(void)
@@ -1032,17 +1098,21 @@ static void Task_EdgeOrderEnter(void)
     }
 
     Task_ManualJogStopForce();
-    Task_EdgeOrderLoadActive();
+    Task_EdgeOrderBeginEdit();
     Task_EdgeOrderSyncKeyEdges();
     s_edge_order_menu_active = 1U;
 
     Task_EdgePatrolFormatOrder(s_edge_patrol_order,
                                EDGE_PATROL_ORDER_COUNT,
                                order, sizeof(order));
-    TASK_TRACE("PATROL order menu enter: current=%s; "
-               "PC3 back edits from the last slot; "
-               "PC0 prev, PC1 next, PC2 ok, PA0 start when ready\r\n",
-               order);
+    printf("ORDER menu enter active=%s new=1/4 raw(active-low)=0x%X "
+           "stable=[PC0:%u PC1:%u PC2:%u PC3:%u]\r\n",
+           order,
+           (unsigned int)s_edge_order_raw_last,
+           (unsigned int)ManualKey_IsPressed(&s_manual_key_up),
+           (unsigned int)ManualKey_IsPressed(&s_manual_key_down),
+           (unsigned int)ManualKey_IsPressed(&s_manual_key_left),
+           (unsigned int)ManualKey_IsPressed(&s_manual_key_right));
     Task_EdgeOrderDraw();
 }
 
@@ -1050,65 +1120,68 @@ static void Task_EdgeOrderExit(void)
 {
     char order[22];
 
+    Task_EdgeOrderSyncKeyEdges();
     s_edge_order_menu_active = 0U;
     Task_EdgePatrolFormatOrder(s_edge_patrol_order,
                                EDGE_PATROL_ORDER_COUNT,
                                order, sizeof(order));
-    TASK_TRACE("PATROL order menu exit: active=%s\r\n", order);
+    printf("ORDER menu exit active=%s\r\n", order);
     Task_ShowManualJog();
 }
 
 static uint8_t Task_EdgeOrderMenuService(void)
 {
+    uint8_t raw;
+
     if (s_edge_order_menu_active == 0U) {
         return 0U;
     }
 
-    if (Task_KeyPressedEdge(&s_manual_key_up,
-                            &s_edge_order_up_last) != 0U) {
-        if (s_edge_order_edit_count >= EDGE_PATROL_ORDER_COUNT) {
-            TASK_TRACE("PATROL order key PC0 PRE ignored: order ready; "
-                       "press PC3 back to edit\r\n");
-        } else {
-            s_edge_order_cursor = Task_EdgeOrderFindPrev(s_edge_order_cursor);
-            TASK_TRACE("PATROL order key PC0 PRE cursor=%s step=%u/%u\r\n",
-                       (s_edge_order_cursor < Task_EdgePatrolJobCount()) ?
-                       s_edge_patrol_point_labels[s_edge_order_cursor] : "?",
-                       (unsigned int)(s_edge_order_edit_count + 1U),
-                       (unsigned int)EDGE_PATROL_ORDER_COUNT);
-        }
-        Task_EdgeOrderDraw();
+    raw = Task_EdgeOrderRawKeyMask();
+    if (raw != s_edge_order_raw_last) {
+        s_edge_order_raw_last = raw;
+        printf("ORDER raw(active-low) PC0..3=0x%X\r\n", (unsigned int)raw);
     }
-    if (Task_KeyPressedEdge(&s_manual_key_down,
-                            &s_edge_order_down_last) != 0U) {
-        if (s_edge_order_edit_count >= EDGE_PATROL_ORDER_COUNT) {
-            TASK_TRACE("PATROL order key PC1 NEXT ignored: order ready; "
-                       "press PC3 back to edit\r\n");
-        } else {
-            s_edge_order_cursor = Task_EdgeOrderFindNext(s_edge_order_cursor);
-            TASK_TRACE("PATROL order key PC1 NEXT cursor=%s step=%u/%u\r\n",
-                       (s_edge_order_cursor < Task_EdgePatrolJobCount()) ?
-                       s_edge_patrol_point_labels[s_edge_order_cursor] : "?",
-                       (unsigned int)(s_edge_order_edit_count + 1U),
-                       (unsigned int)EDGE_PATROL_ORDER_COUNT);
-        }
+
+    /* One menu action per foreground pass.  BACK is intentionally first so
+     * a PC3 press cannot be hidden by a near-simultaneous stale cursor or OK
+     * event after an OLED refresh. */
+    if (ManualKey_TakePressedEvent(&s_manual_key_right) != 0U) {
+        Task_EdgeOrderBack();
         Task_EdgeOrderDraw();
-    }
-    if (Task_KeyPressedEdge(&s_manual_key_left,
-                            &s_edge_order_left_last) != 0U) {
+    } else if (ManualKey_TakePressedEvent(&s_manual_key_left) != 0U) {
         Task_EdgeOrderConfirm();
         Task_EdgeOrderDraw();
-    }
-    if (Task_KeyPressedEdge(&s_manual_key_right,
-                            &s_edge_order_right_last) != 0U) {
-        Task_EdgeOrderBack();
+    } else if (ManualKey_TakePressedEvent(&s_manual_key_up) != 0U) {
+        if (s_edge_order_edit_count >= EDGE_PATROL_ORDER_COUNT) {
+            printf("ORDER key PC0 ignored: READY; press PC3 edit\r\n");
+        } else {
+            s_edge_order_cursor = Task_EdgeOrderFindPrev(s_edge_order_cursor);
+            printf("ORDER key PC0 PRE cursor=%s step=%u/%u\r\n",
+                   (s_edge_order_cursor < Task_EdgePatrolJobCount()) ?
+                   s_edge_patrol_point_labels[s_edge_order_cursor] : "?",
+                   (unsigned int)(s_edge_order_edit_count + 1U),
+                   (unsigned int)EDGE_PATROL_ORDER_COUNT);
+        }
+        Task_EdgeOrderDraw();
+    } else if (ManualKey_TakePressedEvent(&s_manual_key_down) != 0U) {
+        if (s_edge_order_edit_count >= EDGE_PATROL_ORDER_COUNT) {
+            printf("ORDER key PC1 ignored: READY; press PC3 edit\r\n");
+        } else {
+            s_edge_order_cursor = Task_EdgeOrderFindNext(s_edge_order_cursor);
+            printf("ORDER key PC1 NEXT cursor=%s step=%u/%u\r\n",
+                   (s_edge_order_cursor < Task_EdgePatrolJobCount()) ?
+                   s_edge_patrol_point_labels[s_edge_order_cursor] : "?",
+                   (unsigned int)(s_edge_order_edit_count + 1U),
+                   (unsigned int)EDGE_PATROL_ORDER_COUNT);
+        }
         Task_EdgeOrderDraw();
     }
 
     if (Task_EdgePatrolKeyEdge() != 0U) {
         if (s_edge_order_edit_count >= EDGE_PATROL_ORDER_COUNT) {
             s_edge_order_menu_active = 0U;
-            TASK_TRACE("PATROL order menu start by PA0\r\n");
+            printf("ORDER menu PA0 start\r\n");
             return 1U;
         }
         printf("PATROL order menu PA0 ignored: order not ready step=%u/%u\r\n",
@@ -3043,6 +3116,7 @@ static const char *Task_MotorTypeName(uint8_t type_code)
            names[type_code] : "UNKNOWN";
 }
 
+#if MOTOR_INVENTORY_DIAG_LOG
 static void Task_MotorPrintProbeSummary(const char *item,
                                         uint8_t motor_id,
                                         const motor_transaction_summary_t *diag)
@@ -3073,6 +3147,7 @@ static void Task_MotorPrintProbeSummary(const char *item,
            (unsigned int)diag->exception_code,
            (unsigned long)diag->uart_error);
 }
+#endif
 
 static uint8_t Task_MotorInventory(void)
 {
@@ -3082,13 +3157,16 @@ static uint8_t Task_MotorInventory(void)
            "read_func=0x04 baud=115200 format=8N1\r\n");
     for (uint8_t id = 1U; id <= 4U; id++) {
         motor_identity_t identity;
+#if MOTOR_INVENTORY_DIAG_LOG
         motor_transaction_summary_t version_diag;
         motor_transaction_summary_t voltage_diag;
         motor_transaction_summary_t heartbeat_diag;
         motor_transaction_summary_t state_diag;
+#endif
         uint16_t millivolts = 0U;
         uint32_t heartbeat_ms = 0U;
         uint8_t state = 0U;
+        uint8_t heartbeat_unsupported = 0U;
         uint8_t aux_fail_streak = 0U;
         uint8_t aux_fail_streak_max = 0U;
         mb_result_t version_result;
@@ -3097,8 +3175,10 @@ static uint8_t Task_MotorInventory(void)
         mb_result_t state_result;
 
         version_result = motor_read_identity_x(id, &identity);
+#if MOTOR_INVENTORY_DIAG_LOG
         motor_get_last_transaction_summary(&version_diag);
         Task_MotorPrintProbeSummary("VERSION_X", id, &version_diag);
+#endif
         if (version_result != MB_OK) {
             motor_print_last_transaction_diag("MOTOR VERSION FAIL");
             printf("MOTOR ID m=%u fw=UNKNOWN hw=UNKNOWN "
@@ -3112,8 +3192,10 @@ static uint8_t Task_MotorInventory(void)
 
         Task_DelayService(80U);
         voltage_result = motor_read_bus_voltage(id, &millivolts);
+#if MOTOR_INVENTORY_DIAG_LOG
         motor_get_last_transaction_summary(&voltage_diag);
         Task_MotorPrintProbeSummary("VBUS", id, &voltage_diag);
+#endif
         if (voltage_result != MB_OK) {
             motor_print_last_transaction_diag("MOTOR VBUS FAIL");
             aux_fail_streak = 1U;
@@ -3122,12 +3204,19 @@ static uint8_t Task_MotorInventory(void)
             aux_fail_streak = 0U;
         }
 
+#if MOTOR_INVENTORY_PROBE_HEARTBEAT
         Task_DelayService(80U);
         heartbeat_result =
             motor_read_heartbeat_time_x(id, &heartbeat_ms);
+#if MOTOR_INVENTORY_DIAG_LOG
         motor_get_last_transaction_summary(&heartbeat_diag);
         Task_MotorPrintProbeSummary("HEARTBEAT", id, &heartbeat_diag);
-        if (heartbeat_result != MB_OK) {
+#endif
+#else
+        heartbeat_result = MB_ERR_REJECT;
+        heartbeat_unsupported = 1U;
+#endif
+        if (heartbeat_result != MB_OK && heartbeat_unsupported == 0U) {
             motor_print_last_transaction_diag("MOTOR HEARTBEAT FAIL");
             aux_fail_streak++;
             if (aux_fail_streak > aux_fail_streak_max) {
@@ -3139,8 +3228,10 @@ static uint8_t Task_MotorInventory(void)
 
         Task_DelayService(80U);
         state_result = motor_read_state_x(id, &state);
+#if MOTOR_INVENTORY_DIAG_LOG
         motor_get_last_transaction_summary(&state_diag);
         Task_MotorPrintProbeSummary("STATE_X", id, &state_diag);
+#endif
         if (state_result != MB_OK) {
             motor_print_last_transaction_diag("MOTOR STATE FAIL");
             aux_fail_streak++;
@@ -3171,6 +3262,8 @@ static uint8_t Task_MotorInventory(void)
         printf(" heartbeat_ms=");
         if (heartbeat_result == MB_OK) {
             printf("%lu", (unsigned long)heartbeat_ms);
+        } else if (heartbeat_unsupported != 0U) {
+            printf("UNSUPPORTED");
         } else {
             printf("NA");
         }
@@ -3855,10 +3948,11 @@ static uint8_t Task_EdgePatrolRun(void)
     Task_EdgePatrolFormatOrder(s_edge_patrol_order,
                                EDGE_PATROL_ORDER_COUNT,
                                order_line, sizeof(order_line));
-    printf("PATROL start order=%s target=%.1fcm rx=%s "
+    printf("PATROL start order=%s target=%.1fcm rx=%s tx=%s "
            "log=%s enc=%s\r\n",
            order_line, (double)EDGE_PATROL_TARGET_CM,
            motor_rx_mode_name(),
+           motor_tx_mode_name(),
            (APP_COMPACT_LOG != 0U) ? "COMPACT" : "DETAIL",
            (EDGE_PATROL_SEGMENT_ENCODER_READS != 0U ||
             EDGE_PATROL_CAL_ENCODER_READS != 0U ||
@@ -4744,9 +4838,10 @@ void Task_Init(void)
     Task_ManualKeysInit();
     Task_ShowManualZeroPrompt();
 
-    printf("CDPR ready rx=%s log=%s enc=%s; "
+    printf("CDPR ready rx=%s tx=%s log=%s enc=%s; "
            "KEY0 zero, PA0 patrol, KEY1 order\r\n",
            motor_rx_mode_name(),
+           motor_tx_mode_name(),
            (APP_COMPACT_LOG != 0U) ? "COMPACT" : "DETAIL",
            (EDGE_PATROL_SEGMENT_ENCODER_READS != 0U ||
             EDGE_PATROL_CAL_ENCODER_READS != 0U ||

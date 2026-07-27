@@ -1,7 +1,7 @@
 /* ============================================================
  *  motor.c — ZDT X42S 闭环步进电机 Modbus-RTU 驱动
  *  总线: USART3 + RS485(自动方向)
- *  收发: MOTOR_MODBUS_RX_IMPL 可切换 DMA 扫帧或旧阻塞逐字节接收
+ *  收发: RX 可切换 DMA 扫帧/旧阻塞接收；TX 默认 DMA 连续帧发送
  * ============================================================ */
 #include "motor.h"
 #include <stdio.h>
@@ -17,6 +17,11 @@ extern UART_HandleTypeDef huart3;          /* CubeMX 生成的 USART3 句柄 */
 #if (MOTOR_MODBUS_RX_IMPL != MOTOR_MODBUS_RX_DMA_SCAN) && \
     (MOTOR_MODBUS_RX_IMPL != MOTOR_MODBUS_RX_BLOCKING_BYTE)
 #error "Unsupported MOTOR_MODBUS_RX_IMPL"
+#endif
+
+#if (MOTOR_MODBUS_TX_IMPL != MOTOR_MODBUS_TX_DMA_CONTIG) && \
+    (MOTOR_MODBUS_TX_IMPL != MOTOR_MODBUS_TX_HAL_BLOCKING)
+#error "Unsupported MOTOR_MODBUS_TX_IMPL"
 #endif
 
 static motor_transaction_diag_t s_last_diag;
@@ -91,6 +96,15 @@ const char *motor_rx_mode_name(void)
     return "BLOCKING_BYTE";
 #else
     return "DMA_SCAN";
+#endif
+}
+
+const char *motor_tx_mode_name(void)
+{
+#if MOTOR_MODBUS_TX_IMPL == MOTOR_MODBUS_TX_HAL_BLOCKING
+    return "HAL_BLOCKING";
+#else
+    return "DMA_CONTIG";
 #endif
 }
 
@@ -213,6 +227,96 @@ static void motor_diag_capture_raw(const uint8_t *data, uint16_t len)
     }
 }
 
+static void motor_uart_tx_dma_stop(void)
+{
+#if MOTOR_MODBUS_TX_IMPL == MOTOR_MODBUS_TX_DMA_CONTIG
+    /* USART3_TX is fixed to DMA1 Channel 2 on STM32F103. */
+    CLEAR_BIT(huart3.Instance->CR3, USART_CR3_DMAT);
+    CLEAR_BIT(DMA1_Channel2->CCR, DMA_CCR_EN);
+    DMA1->IFCR = DMA_IFCR_CGIF2 | DMA_IFCR_CTCIF2 |
+                 DMA_IFCR_CHTIF2 | DMA_IFCR_CTEIF2;
+#endif
+}
+
+/*
+ * Send one complete Modbus request without foreground byte-to-byte feeding.
+ *
+ * The field capture showed every no-response 0x10 request taking 1868--1907
+ * us to transmit, while normal 19-byte requests consistently took about
+ * 1650 us at 115200 8N1.  HAL_UART_Transmit() waits for TXE between bytes;
+ * a long unrelated ISR can therefore create an RTU frame-internal gap that a
+ * driver discards without replying.  DMA1 Channel 2 keeps DR supplied at the
+ * hardware TXE cadence.  We wait for UART TC, not merely DMA TC, so the last
+ * stop bit has left PB10 before an automatic RS485 direction circuit changes
+ * back to receive.
+ */
+static HAL_StatusTypeDef motor_uart_transmit_frame(const uint8_t *data,
+                                                   uint16_t len,
+                                                   uint32_t timeout_ms)
+{
+#if MOTOR_MODBUS_TX_IMPL == MOTOR_MODBUS_TX_HAL_BLOCKING
+    return HAL_UART_Transmit(&huart3, (uint8_t *)data, len, timeout_ms);
+#else
+    uint32_t start_ms;
+    uint32_t dma_flags;
+    volatile uint32_t sr;
+
+    if (data == NULL || len == 0U) {
+        return HAL_ERROR;
+    }
+    if (((READ_REG(DMA1_Channel2->CCR) & DMA_CCR_EN) != 0U) ||
+        ((READ_REG(huart3.Instance->CR3) & USART_CR3_DMAT) != 0U)) {
+        return HAL_BUSY;
+    }
+
+    __HAL_RCC_DMA1_CLK_ENABLE();
+    motor_uart_tx_dma_stop();
+
+    DMA1_Channel2->CPAR = (uint32_t)(uintptr_t)&huart3.Instance->DR;
+    DMA1_Channel2->CMAR = (uint32_t)(uintptr_t)data;
+    DMA1_Channel2->CNDTR = len;
+    DMA1_Channel2->CCR = DMA_CCR_DIR | DMA_CCR_MINC | DMA_CCR_PL;
+
+    /*
+     * The STM32F1 clears a previous TC through SR-read then DR-write.  Read
+     * SR immediately before enabling DMA; the first DMA write to DR then
+     * forms that sequence without reading DR (which could steal pre-armed
+     * response data from the RX DMA path).
+     */
+    sr = READ_REG(huart3.Instance->SR);
+    (void)sr;
+    SET_BIT(DMA1_Channel2->CCR, DMA_CCR_EN);
+    SET_BIT(huart3.Instance->CR3, USART_CR3_DMAT);
+
+    start_ms = HAL_GetTick();
+    do {
+        dma_flags = READ_REG(DMA1->ISR);
+        if ((dma_flags & DMA_ISR_TEIF2) != 0U) {
+            motor_uart_tx_dma_stop();
+            return HAL_ERROR;
+        }
+        if ((dma_flags & DMA_ISR_TCIF2) != 0U) {
+            break;
+        }
+    } while ((HAL_GetTick() - start_ms) < timeout_ms);
+
+    if ((dma_flags & DMA_ISR_TCIF2) == 0U) {
+        motor_uart_tx_dma_stop();
+        return HAL_TIMEOUT;
+    }
+
+    while (__HAL_UART_GET_FLAG(&huart3, UART_FLAG_TC) == RESET) {
+        if ((HAL_GetTick() - start_ms) >= timeout_ms) {
+            motor_uart_tx_dma_stop();
+            return HAL_TIMEOUT;
+        }
+    }
+
+    motor_uart_tx_dma_stop();
+    return HAL_OK;
+#endif
+}
+
 static void motor_uart_dma_stop(void)
 {
     /*
@@ -252,6 +356,7 @@ static void motor_uart_flush_rx(void)
     (void)HAL_UART_AbortReceive(&huart3);
     motor_uart_disable_unused_irq();
 
+    motor_uart_tx_dma_stop();
     motor_uart_dma_stop();
     __HAL_UART_DISABLE_IT(&huart3, UART_IT_RXNE);
     __HAL_UART_DISABLE_IT(&huart3, UART_IT_PE);
@@ -708,7 +813,7 @@ static mb_result_t mb_transaction(uint8_t *req, uint16_t req_payload_len,
     /*
      * Arm RX before TX for reads and 0x10 writes.  Automatic-direction
      * RS485 adapters can let a fast driver reply immediately after TC; if
-     * DMA is started only after HAL_UART_Transmit() returns, field logs can
+     * DMA is started only after transmit completion, field logs can
      * show rx_len=0 even though the driver answered.  Do not pre-arm 0x06:
      * its request echo is byte-for-byte identical to a normal response.
      */
@@ -724,7 +829,7 @@ static mb_result_t mb_transaction(uint8_t *req, uint16_t req_payload_len,
     {
         uint32_t tx_start_cycles = motor_cycles_now();
         HAL_StatusTypeDef tx_status =
-            HAL_UART_Transmit(&huart3, tx, tx_total, MB_TX_TIMEOUT);
+            motor_uart_transmit_frame(tx, tx_total, MB_TX_TIMEOUT);
         s_last_diag.tx_time_us =
             motor_cycles_to_us(motor_cycles_now() - tx_start_cycles);
         if (tx_status != HAL_OK) {
@@ -913,7 +1018,7 @@ mb_result_t motor_sync_trigger(void)
     f[7] = (uint8_t)(crc >> 8);
     motor_uart_flush_rx();
     HAL_StatusTypeDef tx_status =
-        HAL_UART_Transmit(&huart3, f, 8, MB_TX_TIMEOUT);
+        motor_uart_transmit_frame(f, 8U, MB_TX_TIMEOUT);
     if (tx_status != HAL_OK) {
         motor_uart_enable_rx();
         mb_result_t result = (tx_status == HAL_BUSY) ?

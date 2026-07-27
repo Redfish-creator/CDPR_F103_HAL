@@ -386,7 +386,7 @@ int main(void)
   MX_TIM2_Init();
   /* USER CODE BEGIN 2 */
   setvbuf(stdout, NULL, _IONBF, 0);
-  printf("\r\n[BOOT] CDPR backup-current app start Q2-CAL-JOG-v12-Q3-MB-DIAG2\r\n");
+  printf("\r\n[BOOT] CDPR backup-current app start Q2-CAL-JOG-v12-Q3-TXDMA1-MENU3\r\n");
   printf("RESET csr=0x%08lX pin=%u por=%u sw=%u iwdg=%u wwdg=%u lpwr=%u\r\n",
          (unsigned long)reset_flags,
          (unsigned int)((reset_flags & RCC_CSR_PINRSTF) != 0U),
